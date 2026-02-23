@@ -3,6 +3,14 @@ let contracts = JSON.parse(localStorage.getItem('cate_pro_v9_clean')) || [];
 
 contracts.forEach(c => {
     if (!c.assets) c.assets = [];
+    if (!c.inventory) c.inventory = []; 
+    
+    if (c.history && c.history.length > 0) {
+        const uniqueDates = new Set(c.history.map(h => h.date));
+        c.visitsDone = uniqueDates.size;
+    } else {
+        c.visitsDone = 0;
+    }
 });
 
 // Global Variables
@@ -37,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('main-search-bar').style.visibility = 'hidden';
     renderAll();
     
-    // Dropdown close logic
     document.addEventListener('click', function(event) {
         const dropdown = document.getElementById('notif-dropdown');
         const btn = document.getElementById('notif-btn');
@@ -46,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Lightbox keys
     document.addEventListener('keydown', (e) => {
         if (document.getElementById('lightbox').style.display === 'flex') {
             if (e.key === 'ArrowRight') prevLBImage();
@@ -55,6 +61,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function updateVisitsCount(cIdx) {
+    const c = contracts[cIdx];
+    if (!c.history || c.history.length === 0) {
+        c.visitsDone = 0;
+    } else {
+        const uniqueDates = new Set(c.history.map(h => h.date));
+        c.visitsDone = uniqueDates.size;
+    }
+}
 
 // --- 3. NAVIGATION LOGIC ---
 function switchTab(id) {
@@ -66,7 +82,7 @@ function switchTab(id) {
     
     if (id === 'dashboard') {
         document.getElementById('nav-dashboard').classList.add('active');
-        renderDashboard(); // Re-render dashboard to update live data
+        renderDashboard(); 
     } else if (id === 'contracts' || id === 'company-assets') {
         document.getElementById('nav-contracts').classList.add('active');
         if(id === 'contracts') {
@@ -118,101 +134,72 @@ function filterDashboard(type) {
     }
 }
 
-// دالة حساب التاريخ الدقيق (تحترم عدد أيام الشهر الفعلي 30/31/28)
 function calculateDate(startStr, daily, off, targetHours) {
-    let currentDate = new Date(startStr);
-    let remainingHours = targetHours;
-
-    // لو مفيش ساعات عمل يومية، نرجع تاريخ بعيد
     if (!daily || daily <= 0) {
         return { due: new Date(2100, 0, 1), reminder: new Date(2100, 0, 1), str: 'غير محدد' };
     }
 
-    // تكرار الحساب حتى انتهاء الساعات المتبقية
-    while (remainingHours > 0) {
-        // 1. معرفة عدد الأيام في الشهر الحالي الذي يقف عليه التاريخ الآن
-        // (مثلاً: لو التاريخ في يناير، النتيجة 31. لو في فبراير 2024، النتيجة 29)
+    let currentDate = new Date(startStr);
+    currentDate.setHours(0, 0, 0, 0); 
+    
+    let remainingHours = targetHours;
+    let maxIterations = 50000; 
+    let iterations = 0;
+
+    while (remainingHours > 0 && iterations < maxIterations) {
+        iterations++;
+        
         let year = currentDate.getFullYear();
-        let month = currentDate.getMonth(); 
-        let daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
-
-        // 2. حساب "معدل الإنجاز اليومي الفعلي" لهذا الشهر بالتحديد
-        // المعادلة: (أيام الشهر الكلية - أيام الأجازة) * ساعات العمل / أيام الشهر الكلية
-        // هذا يعطينا متوسط الساعات التي يتم حرقها في اليوم الواحد من التقويم لهذا الشهر
-        let workingDaysInMonth = Math.max(0, daysInCurrentMonth - off);
-        let effectiveDailyRate = (workingDaysInMonth * daily) / daysInCurrentMonth;
-
-        if (effectiveDailyRate <= 0) break; // حماية من الدوران اللانهائي لو الاجازات 30 يوم
-
-        // 3. كم يتبقى من أيام في هذا الشهر بدءاً من اليوم؟
-        // مثال: لو النهاردة 20 يناير، باقي 11 يوم في الشهر
-        let daysLeftInMonth = daysInCurrentMonth - currentDate.getDate();
-
-        // 4. كم ساعة يمكن إنجازها في الفترة المتبقية من هذا الشهر؟
-        let capacityForRestOfMonth = daysLeftInMonth * effectiveDailyRate;
-
-        if (remainingHours <= capacityForRestOfMonth) {
-            // الحالة الأولى: الساعات المتبقية ستنتهي داخل هذا الشهر
-            let daysNeeded = remainingHours / effectiveDailyRate;
-            currentDate.setDate(currentDate.getDate() + Math.ceil(daysNeeded));
-            remainingHours = 0; // انتهينا
-        } else {
-            // الحالة الثانية: الساعات المتبقية أكثر من قدرة هذا الشهر
-            // نخصم ما يمكن إنجازه في هذا الشهر
-            remainingHours -= capacityForRestOfMonth;
-            
-            // نقفز إلى اليوم الأول من الشهر التالي
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            currentDate.setDate(1);
-            // ونستمر في اللفة التالية (while loop)
+        let month = currentDate.getMonth();
+        let daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        let effectiveDaily = (Math.max(0, daysInMonth - off) / daysInMonth) * daily;
+        
+        remainingHours -= effectiveDaily;
+        
+        if (remainingHours > 0) {
+            currentDate.setDate(currentDate.getDate() + 1);
         }
     }
 
     const due = new Date(currentDate);
     const reminder = new Date(due);
-    reminder.setDate(due.getDate() - 14); // تنبيه قبلها بـ 14 يوم
+    reminder.setDate(due.getDate() - 14); 
 
-    // تنسيق التاريخ YYYY-MM-DD
     const yyyy = due.getFullYear();
     const mm = String(due.getMonth() + 1).padStart(2, '0');
     const dd = String(due.getDate()).padStart(2, '0');
 
     return { due, reminder, str: `${yyyy}-${mm}-${dd}` };
 }
+
 function getStatus(c) {
     if (c.isHold) return { type: 'hold', label: 'معلق (Hold)', color: 'var(--secondary)' };
     
     const today = new Date();
-    // Check Contract End Date
     if (c.endDate) {
         const end = new Date(c.endDate);
         const diffTime = end - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays < 0) return { type: 'due', label: 'عقد منتهي', color: 'var(--danger)' };
-        if (diffDays <= 30) return { type: 'soon', label: 'تجديد العقد', color: 'var(--purple)' }; // Warning 1 month before
+        if (diffDays <= 30) return { type: 'soon', label: 'تجديد العقد', color: 'var(--purple)' }; 
     }
     
-    // Check Machines inside contract (Make dashboard reflect REAL machine status)
     let hasDueMachine = false;
     let hasSoonMachine = false;
 
     if(c.assets && c.assets.length > 0) {
         c.assets.forEach(a => {
             if(a.type === 'compressor' && a.maintenancePlan && a.maintenancePlan.length > 0) {
-                // Calculate logic same as detailed timeline
-                let base = 0;
-                if (a.planBaseHours !== undefined) base = a.planBaseHours;
-                else if (a.subType !== 'New') base = a.currentHours;
+                let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                let nextIdx = a.nextMaintenanceIndex || 0;
 
-                // Find next step
-                // A step is next if currentHours < target
-                for(let i=0; i<a.maintenancePlan.length; i++) {
-                    const target = base + ((i+1)*2000);
-                    if(a.currentHours < target) {
-                        const remaining = target - a.currentHours;
-                        if(remaining <= 0) hasDueMachine = true;
-                        else if(remaining <= 200) hasSoonMachine = true; // Less than 200 hours left
-                        break; // Check only the immediate next one
+                if (nextIdx < a.maintenancePlan.length) {
+                    const target = base + 2000;
+                    if (a.currentHours >= target) {
+                        hasDueMachine = true;
+                    } else if ((target - a.currentHours) <= 200) {
+                        hasSoonMachine = true;
                     }
                 }
             }
@@ -242,11 +229,9 @@ function toggleEmptyStates() {
     document.getElementById('no-machines-msg').style.display = hasData ? 'none' : 'block';
 }
 
-// *** UPDATED: DASHBOARD LOGIC ***
 function renderDashboard() {
     let stats = { active: 0, soon: 0, due: 0, hold: 0, total: contracts.length };
     
-    // 1. Calculate Stats based on improved getStatus
     contracts.forEach(c => {
         const status = getStatus(c);
         if (status.type === 'active') stats.active++;
@@ -255,23 +240,19 @@ function renderDashboard() {
         else stats.due++;
     });
 
-    // 2. Urgent Alerts (Individual Machines & Contracts)
     renderUrgentAlerts();
 
-    // 3. Update Counters
     animateValue(document.getElementById('stat-active'), 0, stats.active, 1000);
     animateValue(document.getElementById('stat-soon'), 0, stats.soon, 1000);
     animateValue(document.getElementById('stat-due'), 0, stats.due, 1000);
     animateValue(document.getElementById('stat-hold'), 0, stats.hold, 1000);
 
-    // 4. Render Charts & Lists
     renderStatusChart(stats);
-    renderForecastChart(); // Improved
-    renderTopMachines();   // Improved
-    renderActivityFeed();  // Improved
+    renderForecastChart(); 
+    renderTopMachines();   
+    renderActivityFeed();  
 }
 
-// *** NEW: URGENT ALERTS (Machine Level) ***
 function renderUrgentAlerts() {
     const container = document.getElementById('alerts-container');
     container.innerHTML = '';
@@ -280,7 +261,6 @@ function renderUrgentAlerts() {
     contracts.forEach(c => {
         if(c.isHold) return;
 
-        // A. Contract Alerts
         const today = new Date();
         if(c.endDate) {
             const daysLeft = Math.ceil((new Date(c.endDate) - today) / (1000 * 60 * 60 * 24));
@@ -293,27 +273,21 @@ function renderUrgentAlerts() {
             }
         }
 
-        // B. Machine Alerts (Real Pressure)
         if(c.assets) {
             c.assets.forEach(a => {
                 if(a.type === 'compressor' && a.maintenancePlan) {
-                    let base = 0;
-                    if (a.planBaseHours !== undefined) base = a.planBaseHours;
-                    else if (a.subType !== 'New') base = a.currentHours; // Fallback
+                    let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                    let nextIdx = a.nextMaintenanceIndex || 0;
 
-                    // Check next step
-                    for(let i=0; i<a.maintenancePlan.length; i++) {
-                        const target = base + ((i+1)*2000);
-                        if(a.currentHours < target) {
-                            const remaining = target - a.currentHours;
-                            if(remaining <= 0) {
-                                addAlertItem(container, c.company, `صيانة مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
-                                alertCount++;
-                            } else if (remaining <= 200) {
-                                addAlertItem(container, c.company, `اقتراب صيانة: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
-                                alertCount++;
-                            }
-                            break; // Only check the immediate next interval
+                    if (nextIdx < a.maintenancePlan.length) {
+                        const target = base + 2000;
+                        const remaining = target - a.currentHours;
+                        if(remaining <= 0) {
+                            addAlertItem(container, c.company, `صيانة مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
+                            alertCount++;
+                        } else if (remaining <= 200) {
+                            addAlertItem(container, c.company, `اقتراب صيانة: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
+                            alertCount++;
                         }
                     }
                 }
@@ -353,12 +327,10 @@ function addAlertItem(container, title, msg, type) {
         </div>`;
 }
 
-// *** NEW: ACTIVITY FEED (From History) ***
 function renderActivityFeed() {
     const container = document.getElementById('activity-feed');
     container.innerHTML = '';
     
-    // Gather all history entries
     let allActivities = [];
     contracts.forEach(c => {
         if(c.history && c.history.length > 0) {
@@ -373,10 +345,7 @@ function renderActivityFeed() {
         }
     });
 
-    // Sort by Date Descending
     allActivities.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    // Take top 6
     const recent = allActivities.slice(0, 6);
 
     if(recent.length === 0) {
@@ -397,41 +366,41 @@ function renderActivityFeed() {
     });
 }
 
-// *** NEW: FORECAST CHART (Based on Machine Plans) ***
 function renderForecastChart() {
     const ctx = document.getElementById('forecastChart').getContext('2d');
     const months = [];
     const dataCounts = [0, 0, 0, 0, 0, 0];
     const today = new Date();
     
-    // Generate Month Labels
     for (let i = 0; i < 6; i++) { 
         months.push(new Date(today.getFullYear(), today.getMonth() + i, 1).toLocaleDateString('ar-EG', { month: 'short' })); 
     }
 
-    // Calculate Machine Dues
     contracts.forEach(c => {
         if(!c.isHold && c.assets) {
             c.assets.forEach(a => {
                 if(a.type === 'compressor' && a.dailyHours > 0 && a.maintenancePlan) {
-                    let base = 0;
-                    if (a.planBaseHours !== undefined) base = a.planBaseHours;
-                    else if (a.subType !== 'New') base = a.currentHours;
+                    let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                    let nextIdx = a.nextMaintenanceIndex || 0;
 
-                    // Find next maintenance date
-                    for(let i=0; i<a.maintenancePlan.length; i++) {
-                        const target = base + ((i+1)*2000);
+                    if (nextIdx < a.maintenancePlan.length) {
+                        const target = base + 2000; 
                         if(a.currentHours < target) {
                             const remaining = target - a.currentHours;
-                            const calc = calculateDate(today, a.dailyHours, a.daysOff || 0, remaining);
                             
-                            // Check which month this falls into
+                            let calcBaseDate = today;
+                            if (a.currentHours === 0 && a.startDate) {
+                                calcBaseDate = new Date(a.startDate);
+                            }
+
+                            const calc = calculateDate(calcBaseDate, a.dailyHours, a.daysOff || 0, remaining);
                             const diffMonths = (calc.due.getFullYear() - today.getFullYear()) * 12 + (calc.due.getMonth() - today.getMonth());
                             
                             if (diffMonths >= 0 && diffMonths < 6) {
                                 dataCounts[diffMonths]++;
                             }
-                            break; // Count only the next immediate service
+                        } else {
+                            dataCounts[0]++;
                         }
                     }
                 }
@@ -464,12 +433,10 @@ function renderForecastChart() {
     });
 }
 
-// *** NEW: TOP MACHINES (Based on Machine Daily Hours) ***
 function renderTopMachines() {
     const container = document.getElementById('top-machines-container');
     container.innerHTML = '';
     
-    // Flatten list of all compressors
     let allMachines = [];
     contracts.forEach(c => {
         if(!c.isHold && c.assets) {
@@ -485,7 +452,6 @@ function renderTopMachines() {
         }
     });
 
-    // Sort desc
     allMachines.sort((a, b) => b.daily - a.daily);
     const top5 = allMachines.slice(0, 5);
 
@@ -522,7 +488,6 @@ function renderTopMachines() {
     });
 }
 
-// --- 7. CHARTS (Status) ---
 function renderStatusChart(stats) {
     const ctx = document.getElementById('dashboardChart').getContext('2d');
     if (statusChart) statusChart.destroy();
@@ -531,7 +496,6 @@ function renderStatusChart(stats) {
     statusChart = new Chart(ctx, { type: 'doughnut', data: { labels: stats.total === 0 ? ['لا يوجد بيانات'] : ['سارية', 'تنبيه', 'مستحقة', 'معلقة'], datasets: [{ data: data, backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } });
 }
 
-// --- 8. TABLE RENDER ---
 function renderTable(data) {
     const tbody = document.getElementById('contracts-body');
     tbody.innerHTML = '';
@@ -580,7 +544,6 @@ function renderTable(data) {
     });
 }
 
-// --- 9. HOLD / UNHOLD LOGIC ---
 function holdContract(id) {
     if(confirm('العقد منتهي، هل تريد تعليقه في الأرشيف (Hold)؟')) {
         const idx = contracts.findIndex(x => x.id === id);
@@ -621,7 +584,6 @@ document.getElementById('unholdForm').addEventListener('submit', (e) => {
     }
 });
 
-// --- 10. ASSETS & MACHINES LOGIC ---
 function openCompanyAssets(id) {
     currentAssetContractId = id;
     const c = contracts.find(x => x.id === id);
@@ -643,8 +605,8 @@ function renderAssetsGrid(assets) {
     }
 
     assets.forEach((asset, index) => {
-        let iconClass = asset.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-wind';
-        let bgClass = asset.type === 'dryer' ? 'asset-dryer' : 'asset-compressor';
+        let iconClass = asset.type === 'dryer' ? 'fa-temperature-arrow-down' : (asset.type === 'vacuum' ? 'fa-fan' : 'fa-wind');
+        let bgClass = asset.type === 'dryer' ? 'asset-dryer' : (asset.type === 'vacuum' ? 'asset-vacuum' : 'asset-compressor');
         let details = '';
 
         let clickAction = asset.type === 'compressor' ? `onclick="openMachineDetails(${index})"` : '';
@@ -657,6 +619,15 @@ function renderAssetsGrid(assets) {
                 <div style="font-size:0.75rem; color:var(--text-light); margin-top:5px;">
                     <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${asset.year}</span> 
                     <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${asset.freon}</span>
+                    <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${asset.capacity || 'N/A'}</span>
+                </div>`;
+        } else if (asset.type === 'vacuum') {
+            details = `
+                <div style="font-size:0.95rem; font-weight:bold;">${asset.name} <small style="font-weight:normal; color:var(--text-light)">(Vacuum Pump)</small></div>
+                <div style="font-size:0.8rem; color:var(--text-light);">Serial: ${asset.serial}</div>
+                <div style="font-size:0.75rem; color:var(--text-light); margin-top:5px;">
+                    <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${asset.year}</span> 
+                    <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${asset.bar} Bar</span>
                 </div>`;
         } else {
             let nextMaintText = "تم الانتهاء من الخطة";
@@ -671,6 +642,7 @@ function renderAssetsGrid(assets) {
             details = `
                 <div style="font-size:0.95rem; font-weight:bold;">${asset.name} <small style="font-weight:normal; color:var(--text-light)">(${asset.subType})</small></div>
                 <div style="font-size:0.8rem; color:var(--text-light);">Serial: ${asset.serial}</div>
+                <div style="font-size:0.8rem; color:var(--text-light); margin-top:2px;">بدء التشغيل: <span style="font-weight:bold; color:var(--info);">${asset.startDate || 'غير محدد'}</span></div>
                 <div style="margin-top:8px; border-top:1px solid #eee; padding-top:5px;">
                     <div style="font-size:0.8rem; font-weight:bold; color:${nextColor}">${nextMaintText}</div>
                 </div>`;
@@ -689,7 +661,276 @@ function renderAssetsGrid(assets) {
     });
 }
 
-// --- 11. MODAL & FORM LOGIC ---
+// --- NEW: INVENTORY LOGIC (MODERNIZED & CREATIVE) ---
+function openInventoryModal() {
+    if(!currentAssetContractId) return;
+    renderInventoryTables();
+    document.getElementById('inventoryModal').style.display = 'flex';
+}
+
+function closeInventoryModal() {
+    document.getElementById('inventoryModal').style.display = 'none';
+}
+
+function renderInventoryTables() {
+    const container = document.getElementById('inventory-container');
+    container.innerHTML = '';
+    
+    const idx = contracts.findIndex(c => c.id === currentAssetContractId);
+    if(idx === -1) return;
+    const contract = contracts[idx];
+
+    if(!contract.assets || contract.assets.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:#aaa;"><i class="fa-solid fa-triangle-exclamation" style="font-size:3rem; margin-bottom:15px; color:#cbd5e1;"></i><br>لا توجد ماكينات مسجلة في هذا العقد.<br>يرجى إضافة (Compressor / Dryer / Vacuum) أولاً.</div>';
+        return;
+    }
+
+    contract.assets.forEach((asset, assetIdx) => {
+        const assetParts = (contract.inventory || []).filter(p => p.model === asset.name);
+        
+        let rows = '';
+        assetParts.forEach((p, i) => {
+            rows += `<tr>
+                <td style="color:var(--text-light);">${i + 1}</td>
+                <td style="text-align:left; font-weight:700;">${p.name}</td>
+                <td style="font-family:monospace; color:var(--primary);">${p.partNo || '-'}</td>
+                <td style="color:${p.qty > 0 ? '#16a34a' : '#ef4444'}; font-size:1.1rem;">${p.qty}</td>
+                <td style="color:var(--text-light);">${p.notes || '-'}</td>
+                <td><button class="btn-delete-inv" onclick="deleteInvItem('${p.id}')"><i class="fa-solid fa-trash"></i></button></td>
+            </tr>`;
+        });
+
+        const tableHtml = assetParts.length > 0 ? `
+            <table class="inv-table">
+                <thead>
+                    <tr>
+                        <th style="width:5%;">#</th>
+                        <th style="width:30%; text-align:left;">اسم القطعة (Spare parts)</th>
+                        <th style="width:20%;">Part no</th>
+                        <th style="width:10%;">QYT</th>
+                        <th style="width:30%;">ملاحظات</th>
+                        <th style="width:5%;"></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        ` : `<div class="empty-asset-parts"><i class="fa-solid fa-box-open" style="font-size:1.5rem; margin-bottom:10px; color:#94a3b8;"></i><br>لا توجد قطع غيار مضافة لهذه الماكينة حتى الآن.</div>`;
+
+        let icon = asset.type === 'compressor' ? 'fa-wind' : (asset.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-fan');
+        let subTypeLabel = asset.type === 'compressor' ? `(${asset.subType})` : '';
+
+        container.innerHTML += `
+            <div class="asset-inv-card">
+                <div class="asset-inv-header">
+                    <div class="asset-inv-header-info">
+                        <i class="fa-solid ${icon}"></i>
+                        <span>${asset.name} <small style="font-weight:normal; opacity:0.8;">${subTypeLabel}</small></span>
+                    </div>
+                    <div style="font-size:0.85rem; font-weight:normal; opacity:0.9;">Serial: ${asset.serial || 'N/A'}</div>
+                </div>
+                
+                <form class="asset-inv-form" onsubmit="addPartToAsset(event, ${assetIdx})">
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:bold; color:var(--text-light);">اسم القطعة (Spare parts)</label>
+                        <input type="text" id="invName_${assetIdx}" class="form-control" style="background:white; padding:8px 12px;" required>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:bold; color:var(--text-light);">Part no</label>
+                        <input type="text" id="invPartNo_${assetIdx}" class="form-control" style="background:white; padding:8px 12px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:bold; color:var(--text-light);">الكمية (QYT)</label>
+                        <input type="number" id="invQty_${assetIdx}" class="form-control" style="background:white; padding:8px 12px;" min="1" value="1" required>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:bold; color:var(--text-light);">ملاحظات (Notes)</label>
+                        <input type="text" id="invNotes_${assetIdx}" class="form-control" style="background:white; padding:8px 12px;">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary" style="padding: 8px 15px; height: 100%;"><i class="fa-solid fa-plus"></i> إضافة</button>
+                    </div>
+                </form>
+                
+                <div class="asset-inv-body">
+                    ${tableHtml}
+                </div>
+            </div>
+        `;
+    });
+}
+
+window.addPartToAsset = function(e, assetIdx) {
+    e.preventDefault();
+    if(!currentAssetContractId) return;
+
+    const cIdx = contracts.findIndex(c => c.id === currentAssetContractId);
+    if(cIdx === -1) return;
+    
+    const asset = contracts[cIdx].assets[assetIdx];
+
+    const newItem = {
+        id: Date.now().toString(),
+        model: asset.name,
+        name: document.getElementById(`invName_${assetIdx}`).value,
+        partNo: document.getElementById(`invPartNo_${assetIdx}`).value,
+        qty: parseInt(document.getElementById(`invQty_${assetIdx}`).value),
+        notes: document.getElementById(`invNotes_${assetIdx}`).value
+    };
+
+    if(!contracts[cIdx].inventory) contracts[cIdx].inventory = [];
+    contracts[cIdx].inventory.push(newItem);
+
+    saveData();
+    renderInventoryTables();
+    showToast('تم إضافة القطعة للمخزن بنجاح');
+};
+
+function deleteInvItem(itemId) {
+    if(!confirm('حذف هذه القطعة من الجرد؟')) return;
+    const idx = contracts.findIndex(c => c.id === currentAssetContractId);
+    if(idx !== -1) {
+        contracts[idx].inventory = contracts[idx].inventory.filter(i => i.id !== itemId);
+        saveData();
+        renderInventoryTables();
+    }
+}
+
+// --- NEW UI: Visit Form Inventory Deduction ---
+function renderVisitInventoryDeduction(contractId, assetName = null) {
+    const container = document.getElementById('visit-inventory-list');
+    const box = document.getElementById('visit-inventory-deduction');
+    const nameLabel = document.getElementById('inv-machine-name');
+    container.innerHTML = '';
+    
+    if (!assetName) {
+        box.classList.add('hidden');
+        return;
+    }
+
+    const contract = contracts.find(c => c.id === contractId);
+    const availableParts = contract.inventory ? contract.inventory.filter(p => p.qty > 0 && p.model === assetName) : [];
+
+    if(availableParts.length === 0) {
+        box.classList.add('hidden');
+        return;
+    }
+
+    box.classList.remove('hidden');
+    nameLabel.innerText = `(${assetName})`;
+    
+    let gridHtml = '<div class="visit-inv-grid">';
+    
+    availableParts.forEach(p => {
+        gridHtml += `
+            <div class="visit-inv-card" id="vic-card-${p.id}">
+                <div class="vic-header">
+                    <input type="checkbox" class="vic-checkbox" id="vic-chk-${p.id}" value="${p.id}" onchange="toggleVicQty('${p.id}')">
+                    <div class="vic-check-indicator" onclick="document.getElementById('vic-chk-${p.id}').click()"><i class="fa-solid fa-check"></i></div>
+                    <div class="vic-info" onclick="document.getElementById('vic-chk-${p.id}').click()">
+                        <span class="vic-name">${p.name}</span>
+                        <span class="vic-meta">متاح: <b style="color:var(--primary); font-size:0.85rem;">${p.qty}</b></span>
+                    </div>
+                </div>
+                <div class="vic-qty-ctrl" id="vic-ctrl-${p.id}">
+                    <button type="button" class="vic-btn" onclick="changeVicQty('${p.id}', -1)">-</button>
+                    <input type="number" id="vic-input-${p.id}" class="vic-input" data-name="${p.name}" min="1" max="${p.qty}" value="1" readonly>
+                    <button type="button" class="vic-btn" onclick="changeVicQty('${p.id}', 1, ${p.qty})">+</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    gridHtml += '</div>';
+    container.innerHTML = gridHtml;
+}
+
+window.toggleVicQty = function(id) {
+    const chk = document.getElementById(`vic-chk-${id}`);
+    const ctrl = document.getElementById(`vic-ctrl-${id}`);
+    const card = document.getElementById(`vic-card-${id}`);
+    if(chk.checked) {
+        ctrl.classList.add('show');
+        card.classList.add('active');
+    } else {
+        ctrl.classList.remove('show');
+        card.classList.remove('active');
+        document.getElementById(`vic-input-${id}`).value = 1;
+    }
+}
+
+window.changeVicQty = function(id, delta, max) {
+    const input = document.getElementById(`vic-input-${id}`);
+    let val = parseInt(input.value) || 1;
+    val += delta;
+    if(val < 1) val = 1;
+    if(max !== undefined && val > max) val = max;
+    input.value = val;
+}
+
+// --- VISUAL FEEDBACK FOR MAINTENANCE BUTTONS ---
+window.resetMaintButtons = function() {
+    document.querySelectorAll('.maint-select-btn').forEach(btn => {
+        const col = btn.getAttribute('data-color');
+        if(col) {
+            btn.style.background = 'white';
+            btn.style.color = col;
+            btn.style.transform = 'translateY(0)';
+            btn.style.boxShadow = 'none';
+        }
+    });
+};
+
+window.fillMaintDetails = function(type, btnElement) {
+    const textArea = document.getElementById('visitNotes');
+    if (MAINT_TEMPLATES[type]) {
+        textArea.value = MAINT_TEMPLATES[type];
+        
+        resetMaintButtons();
+        
+        if (btnElement) {
+            const col = btnElement.getAttribute('data-color');
+            btnElement.style.background = col;
+            btnElement.style.color = 'white';
+            btnElement.style.transform = 'translateY(-2px)';
+            btnElement.style.boxShadow = `0 4px 12px ${col}60`; 
+        }
+
+        const subOpts = document.getElementById('maint-8000-sub-options');
+        
+        if (type.startsWith('8000')) {
+            const main8000 = document.getElementById('btn-8000-main');
+            if(main8000) {
+                main8000.style.background = '#ef4444';
+                main8000.style.color = 'white';
+            }
+        } else if(subOpts) {
+            subOpts.classList.add('hidden');
+        }
+    }
+};
+
+window.toggle8000Options = function(btnElement) {
+    const div = document.getElementById('maint-8000-sub-options');
+    if (div.classList.contains('hidden')) {
+        div.classList.remove('hidden');
+        if(btnElement) {
+            const col = btnElement.getAttribute('data-color');
+            btnElement.style.background = col;
+            btnElement.style.color = 'white';
+        }
+    } else {
+        div.classList.add('hidden');
+        const textArea = document.getElementById('visitNotes');
+        if (!textArea.value.includes('عمرة 8000')) {
+            if(btnElement) {
+                const col = btnElement.getAttribute('data-color');
+                btnElement.style.background = 'white';
+                btnElement.style.color = col;
+            }
+        }
+    }
+};
+
 function openAddMachineModal() { 
     editingAssetIndex = null; 
     resetMachineModal(); 
@@ -701,19 +942,38 @@ function resetMachineModal() {
     document.getElementById('dryer-form-section').classList.add('hidden');
     document.getElementById('compressor-choice-section').classList.add('hidden');
     document.getElementById('used-compressor-form-section').classList.add('hidden');
+    document.getElementById('vacuum-form-section').classList.add('hidden');
     document.getElementById('dryerForm').reset();
     document.getElementById('usedCompressorForm').reset();
+    document.getElementById('vacuumForm').reset();
 }
 function selectMachineType(type) {
     document.getElementById('machine-type-selection').classList.add('hidden');
-    if (type === 'dryer') { document.getElementById('dryer-form-section').classList.remove('hidden'); } else { document.getElementById('compressor-choice-section').classList.remove('hidden'); }
+    if (type === 'dryer') { 
+        document.getElementById('dryer-form-section').classList.remove('hidden'); 
+    } else if (type === 'vacuum') { 
+        document.getElementById('vacuum-form-section').classList.remove('hidden'); 
+    } else { 
+        document.getElementById('compressor-choice-section').classList.remove('hidden'); 
+    }
 }
 function showCompressorForm(mode) {
     currentCompressorMode = mode;
     document.getElementById('compressor-choice-section').classList.add('hidden');
     document.getElementById('used-compressor-form-section').classList.remove('hidden');
-    const hrContainer = document.getElementById('currentHoursContainer');
-    if (mode === 'new') { hrContainer.style.display = 'none'; document.getElementById('compCurrentHours').value = 0; } else { hrContainer.style.display = 'block'; document.getElementById('compCurrentHours').value = ''; }
+    
+    document.getElementById('compStartDate').value = new Date().toISOString().split('T')[0];
+    
+    const hrsContainer = document.getElementById('hoursDataContainer');
+    if (mode === 'new') { 
+        hrsContainer.style.display = 'none'; 
+        document.getElementById('compCurrentHours').value = 0; 
+        document.getElementById('compLastMaintHours').value = 0; 
+    } else { 
+        hrsContainer.style.display = 'flex'; 
+        document.getElementById('compCurrentHours').value = ''; 
+        document.getElementById('compLastMaintHours').value = ''; 
+    }
     currentMaintenancePlan = []; updatePlanPreview();
 }
 function backToCompChoice() {
@@ -721,7 +981,6 @@ function backToCompChoice() {
     document.getElementById('compressor-choice-section').classList.remove('hidden');
 }
 
-// --- 12. PLAN BUILDER ---
 function addPlanStep(type) { currentMaintenancePlan.push(type); updatePlanPreview(); }
 function removePlanStep(index) { currentMaintenancePlan.splice(index, 1); updatePlanPreview(); }
 function clearPlan() { currentMaintenancePlan = []; updatePlanPreview(); }
@@ -741,24 +1000,59 @@ function getMaintenanceColor(char) {
 function updatePlanPreview() {
     const container = document.getElementById('planTimelineContainer');
     const currentHoursInput = document.getElementById('compCurrentHours').value;
+    const lastMaintHoursInput = document.getElementById('compLastMaintHours').value; 
     const dailyHours = parseFloat(document.getElementById('compDailyHours').value) || 0;
     const daysOff = parseFloat(document.getElementById('compDaysOff').value) || 0;
+    
     let currentHours = parseInt(currentHoursInput) || 0;
+    let lastMaintHours = parseInt(lastMaintHoursInput) || 0; 
+    if(currentCompressorMode === 'new'){
+        lastMaintHours = 0;
+    }
+
+    let nextIdx = 0;
+    if (editingAssetIndex !== null && currentAssetContractId) {
+        const c = contracts.find(x => x.id === currentAssetContractId);
+        if (c && c.assets[editingAssetIndex]) {
+            nextIdx = c.assets[editingAssetIndex].nextMaintenanceIndex || 0;
+        }
+    }
+    
     container.innerHTML = '';
     if (currentMaintenancePlan.length === 0) { container.innerHTML = '<div style="text-align:center; color:#aaa; font-size:0.85rem; padding-top:20px;">اضغط على الأزرار أعلاه لترتيب الصيانات القادمة...</div>'; return; }
-    const baseDate = new Date(); 
+    
+    let baseDate = new Date(); 
+    if ((currentCompressorMode === 'new' || currentHours === 0) && document.getElementById('compStartDate').value) {
+        baseDate = new Date(document.getElementById('compStartDate').value);
+    }
+
     currentMaintenancePlan.forEach((stepChar, index) => {
-        const stepHours = 2000 * (index + 1); 
-        const dueHours = currentHours + stepHours;
-        const dateCalc = calculateDate(baseDate, dailyHours, daysOff, stepHours);
+        let dueHours;
+        let remainingHours = 0;
+        let dateDisplay = '';
+
+        if (index < nextIdx) {
+            dueHours = 'تمت مسبقاً';
+            dateDisplay = '<span style="color:#10b981"><i class="fa-solid fa-check"></i> منتهية</span>';
+        } else {
+            dueHours = lastMaintHours + ((index - nextIdx + 1) * 2000);
+            remainingHours = dueHours - currentHours;
+
+            if(remainingHours > 0) {
+                 const dateCalc = calculateDate(baseDate, dailyHours, daysOff, remainingHours);
+                 dateDisplay = `<i class="fa-regular fa-calendar"></i> ${dateCalc.str}`;
+            } else {
+                 dateDisplay = '<span style="color:red; font-weight:bold;">مستحقة فوراً</span>';
+            }
+        }
+        
         const color = getMaintenanceColor(stepChar);
         const label = getMaintenanceLabel(stepChar);
-        const html = `<div class="plan-step" style="border-right: 4px solid ${color}"><div class="step-index" style="background:${color}">${index + 1}</div><div class="step-info" style="margin-right:10px;"><div class="step-type" style="color:${color}">${label}</div><div class="step-date"><i class="fa-solid fa-clock"></i> عند ${dueHours} ساعة <span style="margin:0 5px; color:#cbd5e1;">|</span> <i class="fa-regular fa-calendar"></i> ${dateCalc.str}</div></div><div class="step-remove" onclick="removePlanStep(${index})"><i class="fa-solid fa-times"></i></div></div>`;
+        const html = `<div class="plan-step" style="border-right: 4px solid ${color}"><div class="step-index" style="background:${color}">${index + 1}</div><div class="step-info" style="margin-right:10px;"><div class="step-type" style="color:${color}">${label}</div><div class="step-date"><i class="fa-solid fa-clock"></i> عند ${dueHours} ${index < nextIdx ? '' : 'ساعة'} <span style="margin:0 5px; color:#cbd5e1;">|</span> ${dateDisplay}</div></div><div class="step-remove" onclick="removePlanStep(${index})"><i class="fa-solid fa-times"></i></div></div>`;
         container.insertAdjacentHTML('beforeend', html);
     });
 }
 
-// --- 13. SAVE & EDIT ASSET HANDLERS ---
 function deleteAsset(index) {
     if (confirm("هل أنت متأكد من حذف هذه الماكينة؟")) {
         const cIdx = contracts.findIndex(c => c.id === currentAssetContractId);
@@ -789,22 +1083,40 @@ function editAsset(index) {
         if (nameRadio) nameRadio.checked = true;
         const freonRadio = document.querySelector(`input[name="dryerFreon"][value="${asset.freon}"]`);
         if (freonRadio) freonRadio.checked = true;
+        
+        const capRadio = document.querySelector(`input[name="dryerCapacity"][value="${asset.capacity}"]`);
+        if (capRadio) capRadio.checked = true;
+        else {
+            const defaultCap = document.querySelector(`input[name="dryerCapacity"][value="FX350"]`);
+            if(defaultCap) defaultCap.checked = true;
+        }
+
         document.getElementById('dryerSerial').value = asset.serial;
         document.getElementById('dryerYear').value = asset.year;
+    } else if (asset.type === 'vacuum') {
+        document.getElementById('vacuum-form-section').classList.remove('hidden');
+        document.getElementById('vacuumName').value = asset.name;
+        document.getElementById('vacuumSerial').value = asset.serial;
+        document.getElementById('vacuumYear').value = asset.year;
+        document.getElementById('vacuumBar').value = asset.bar;
     } else {
         document.getElementById('used-compressor-form-section').classList.remove('hidden');
         document.getElementById('compressor-choice-section').classList.add('hidden');
         document.getElementById('compName').value = asset.name;
         document.getElementById('compSerial').value = asset.serial;
         document.getElementById('compYear').value = asset.year;
+        document.getElementById('compStartDate').value = asset.startDate || '';
         currentCompressorMode = asset.subType === 'New' ? 'new' : 'used';
-        const hrContainer = document.getElementById('currentHoursContainer');
+        
+        const hrsContainer = document.getElementById('hoursDataContainer');
         if (currentCompressorMode === 'new') {
-            hrContainer.style.display = 'none';
+            hrsContainer.style.display = 'none';
             document.getElementById('compCurrentHours').value = 0;
+            document.getElementById('compLastMaintHours').value = 0;
         } else {
-            hrContainer.style.display = 'block';
+            hrsContainer.style.display = 'flex';
             document.getElementById('compCurrentHours').value = asset.currentHours;
+            document.getElementById('compLastMaintHours').value = asset.planBaseHours !== undefined ? asset.planBaseHours : asset.currentHours;
         }
         document.getElementById('compDailyHours').value = asset.dailyHours;
         document.getElementById('compDaysOff').value = asset.daysOff;
@@ -819,10 +1131,12 @@ document.getElementById('dryerForm').addEventListener('submit', (e) => {
 
     const nameInput = document.querySelector('input[name="dryerName"]:checked');
     const freonInput = document.querySelector('input[name="dryerFreon"]:checked');
+    const capacityInput = document.querySelector('input[name="dryerCapacity"]:checked');
 
     const dryerData = { 
         type: 'dryer', 
         name: nameInput ? nameInput.value : "FD dryer", 
+        capacity: capacityInput ? capacityInput.value : "FX350", 
         serial: document.getElementById('dryerSerial').value, 
         year: document.getElementById('dryerYear').value, 
         freon: freonInput ? freonInput.value : "R410" 
@@ -832,11 +1146,42 @@ document.getElementById('dryerForm').addEventListener('submit', (e) => {
     if (idx !== -1) {
         if (!contracts[idx].assets) contracts[idx].assets = [];
         if (editingAssetIndex !== null) {
-            contracts[idx].assets[editingAssetIndex] = dryerData;
+            const oldData = contracts[idx].assets[editingAssetIndex];
+            contracts[idx].assets[editingAssetIndex] = {...oldData, ...dryerData};
             showToast("تم تعديل بيانات المجفف");
         } else {
             contracts[idx].assets.push(dryerData);
             showToast("تم إضافة المجفف");
+        }
+        saveData();
+        renderAssetsGrid(contracts[idx].assets);
+        closeAddMachineModal();
+        editingAssetIndex = null;
+    }
+});
+
+document.getElementById('vacuumForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!currentAssetContractId) return;
+
+    const vacuumData = { 
+        type: 'vacuum', 
+        name: document.getElementById('vacuumName').value, 
+        serial: document.getElementById('vacuumSerial').value, 
+        year: document.getElementById('vacuumYear').value, 
+        bar: document.getElementById('vacuumBar').value 
+    };
+
+    const idx = contracts.findIndex(c => c.id === currentAssetContractId);
+    if (idx !== -1) {
+        if (!contracts[idx].assets) contracts[idx].assets = [];
+        if (editingAssetIndex !== null) {
+            const oldData = contracts[idx].assets[editingAssetIndex];
+            contracts[idx].assets[editingAssetIndex] = {...oldData, ...vacuumData};
+            showToast("تم تعديل بيانات الـ Vacuum Pump");
+        } else {
+            contracts[idx].assets.push(vacuumData);
+            showToast("تم إضافة الـ Vacuum Pump");
         }
         saveData();
         renderAssetsGrid(contracts[idx].assets);
@@ -854,6 +1199,8 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
     const daily = parseFloat(document.getElementById('compDailyHours').value);
     const off = parseFloat(document.getElementById('compDaysOff').value);
     const currentHrsVal = parseInt(document.getElementById('compCurrentHours').value) || 0;
+    
+    const lastMaintVal = currentCompressorMode === 'new' ? 0 : (parseInt(document.getElementById('compLastMaintHours').value) || 0);
 
     const compData = {
         type: 'compressor', 
@@ -861,12 +1208,14 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
         name: document.getElementById('compName').value, 
         serial: document.getElementById('compSerial').value, 
         year: document.getElementById('compYear').value,
+        startDate: document.getElementById('compStartDate').value,
         currentHours: currentHrsVal,
-        planBaseHours: currentCompressorMode === 'new' ? 0 : currentHrsVal,
+        planBaseHours: lastMaintVal, 
         dailyHours: daily, 
         daysOff: off,
         maintenancePlan: currentMaintenancePlan, 
-        nextMaintenanceIndex: (editingAssetIndex !== null && contracts.find(c => c.id === currentAssetContractId).assets[editingAssetIndex].nextMaintenanceIndex) || 0
+        nextMaintenanceIndex: (editingAssetIndex !== null && contracts.find(c => c.id === currentAssetContractId).assets[editingAssetIndex].nextMaintenanceIndex) || 0,
+        completedStepsHours: (editingAssetIndex !== null && contracts.find(c => c.id === currentAssetContractId).assets[editingAssetIndex].completedStepsHours) || []
     };
 
     const idx = contracts.findIndex(c => c.id === currentAssetContractId);
@@ -903,6 +1252,7 @@ form.addEventListener('submit', async (e) => {
         startDate: document.getElementById('startDate').value, endDate: document.getElementById('endDate').value, totalVisits: parseInt(document.getElementById('totalVisits').value),
         dailyHours: id ? contracts.find(x=>x.id==id).dailyHours : 0, daysOff: id ? contracts.find(x=>x.id==id).daysOff : 0, maintType: id ? contracts.find(x=>x.id==id).maintType : 2000, 
         visitsDone: id ? contracts.find(x=>x.id==id).visitsDone : 0, history: id ? contracts.find(x=>x.id==id).history : [], assets: id ? contracts.find(x=>x.id==id).assets : [],
+        inventory: id ? (contracts.find(x=>x.id==id).inventory || []) : [],
         contractPDF: pdfData,
         isHold: id ? contracts.find(x=>x.id==id).isHold : false 
     };
@@ -942,7 +1292,6 @@ function openContractPDF(id) { const c = contracts.find(x => x.id === id); if (c
 function showContractFilePreview(input) { document.getElementById('contract-file-preview').innerText = input.files[0] ? input.files[0].name : ''; }
 function openWAModal(id) { currentWAContract = contracts.find(c => c.id === id); document.getElementById('waModal').style.display = 'flex'; }
 function closeWAModal() { document.getElementById('waModal').style.display = 'none'; }
-// في ملف script.js
 
 function sendWAMessage(type) {
     if(!currentWAContract) return;
@@ -950,14 +1299,12 @@ function sendWAMessage(type) {
     const phone = formatPhone(c.phone);
     let msg = "";
 
-    // التأكد من وجود بيانات ساعات العمل
     if(c.dailyHours <= 0) { 
         showToast("يرجى تحديد ساعات التشغيل في العقد أولاً للحساب", "error"); 
         return; 
     }
 
     if (type === 'schedule') {
-        // حساب التواريخ المتوقعة بناءً على ساعات العمل
         const d2000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 2000).str;
         const d4000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 4000).str;
         const d8000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 8000).str;
@@ -969,7 +1316,6 @@ function sendWAMessage(type) {
               `يرجى العلم أن هذه المواعيد تقديرية بناءً على معدل التشغيل (${c.dailyHours} ساعة/يوم).`;
     
     } else {
-        // رسائل التذكير المحددة
         const hours = parseInt(type);
         const dateCalc = calculateDate(c.startDate, c.dailyHours, c.daysOff, hours).str;
         
@@ -984,7 +1330,6 @@ function sendWAMessage(type) {
               `يرجى التنسيق لعمل اللازم للحفاظ على كفاءة المعدات.`;
     }
 
-    // فتح واتساب
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
     closeWAModal();
 }
@@ -995,6 +1340,7 @@ window.onclick = function(e) {
     if (e.target == document.getElementById('addMachineModal')) closeAddMachineModal(); 
     if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
     if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
+    if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
 }
 
 function updateNotifications() {
@@ -1031,7 +1377,7 @@ function openCRM(id) {
     document.getElementById('detail-client').innerText = c.client;
     document.getElementById('count-total').innerText = c.totalVisits; 
     document.getElementById('count-done').innerText = c.visitsDone;
-    document.getElementById('count-left').innerText = c.totalVisits - c.visitsDone; 
+    document.getElementById('count-left').innerText = Math.max(0, c.totalVisits - c.visitsDone); 
     document.getElementById('reportContractId').value = c.id;
     renderReportAssetsSelection(c);
 }
@@ -1046,13 +1392,15 @@ function renderReportAssetsSelection(contract) {
     }
     noMsg.style.display = 'none';
     contract.assets.forEach((asset, index) => {
-        let icon = asset.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-wind';
-        let color = asset.type === 'dryer' ? '#f97316' : '#006F8F'; 
+        let icon = asset.type === 'dryer' ? 'fa-temperature-arrow-down' : (asset.type === 'vacuum' ? 'fa-fan' : 'fa-wind');
+        let color = asset.type === 'dryer' ? '#f97316' : (asset.type === 'vacuum' ? '#8b5cf6' : '#006F8F'); 
         container.innerHTML += `<div class="type-card asset-select-card" onclick="selectReportAsset(${index})" id="asset-card-${index}" style="padding:15px; min-height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #e2e8f0;"><i class="fa-solid ${icon}" style="font-size:1.8rem; margin-bottom:10px; color:${color}"></i><h4 style="font-size:0.95rem; margin-bottom:5px;">${asset.name}</h4><span style="font-size:0.75rem; color:#64748b;">${asset.serial}</span></div>`;
     });
 }
 
 function selectReportAsset(index) {
+    if (window.resetMaintButtons) resetMaintButtons();
+
     currentReportAssetIndex = index;
     const cId = parseInt(document.getElementById('reportContractId').value);
     const contract = contracts.find(x => x.id === cId);
@@ -1063,11 +1411,17 @@ function selectReportAsset(index) {
     const compOptions = document.getElementById('compressor-maint-options');
     const dryerOptions = document.getElementById('dryer-maint-options');
     const options8000Div = document.getElementById('maint-8000-sub-options');
+    
     const radios = document.getElementsByName('oilFilterOption');
     radios.forEach(r => r.checked = false);
+    const extraCbs = document.getElementsByName('extraParts');
+    extraCbs.forEach(cb => cb.checked = false);
+
+    let selectedAssetName = null; 
 
     if (index !== null) {
         const asset = contract.assets[index];
+        selectedAssetName = asset.name; 
         const activeCard = document.getElementById(`asset-card-${index}`);
         if(activeCard) {
             activeCard.style.borderColor = 'var(--primary)';
@@ -1089,6 +1443,9 @@ function selectReportAsset(index) {
         compOptions.classList.add('hidden');
         dryerOptions.classList.add('hidden');
     }
+    
+    renderVisitInventoryDeduction(cId, selectedAssetName);
+
     document.getElementById('report-action-section').classList.remove('hidden');
     document.getElementById('reportAssetIndex').value = index !== null ? index : '';
     document.getElementById('visitNotes').value = '';
@@ -1100,35 +1457,36 @@ function toggle8000Options() {
     if (div.classList.contains('hidden')) div.classList.remove('hidden'); else div.classList.add('hidden');
 }
 
-function fillMaintDetails(type) {
-    const textArea = document.getElementById('visitNotes');
-    if (MAINT_TEMPLATES[type]) {
-        textArea.value = MAINT_TEMPLATES[type];
-        const subOpts = document.getElementById('maint-8000-sub-options');
-        if(subOpts) subOpts.classList.add('hidden');
-    }
-}
-
 function renderTimeline(history, contractId, filterAssetIndex = null) {
     const container = document.getElementById('history-timeline'); container.innerHTML = '';
     if(!history || history.length === 0) { container.innerHTML = '<div style="text-align:center; padding:30px; color:#aaa; border:2px dashed #eee; border-radius:12px;">لا توجد زيارات مسجلة لهذه الماكينة</div>'; return; }
     
-    const filteredHistory = history.map((h, originalIndex) => ({...h, originalIndex})).filter(h => {
-        if (filterAssetIndex !== null) return h.assetIndex == filterAssetIndex;
-        return true; 
-    });
+    const filteredHistory = history.map((h, originalIndex) => ({...h, originalIndex}))
+        .filter(h => {
+            if (filterAssetIndex !== null) return h.assetIndex == filterAssetIndex;
+            return true; 
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if(filteredHistory.length === 0) {
         container.innerHTML = '<div style="text-align:center; padding:30px; color:#aaa; border:2px dashed #eee; border-radius:12px;">لا توجد زيارات مسجلة لهذه الماكينة بعد</div>'; 
         return;
     }
 
-    [...filteredHistory].reverse().forEach((h) => {
+    filteredHistory.forEach((h) => {
         const actualIndex = h.originalIndex;
         let imagesHtml = '';
         if(h.images && h.images.length > 0) {
-            imagesHtml = '<div class="visit-gallery">';
-            h.images.forEach((imgData, i) => { if(i > 3) return; imagesHtml += `<div class="visit-img-thumb" onclick="openLightboxForVisit(${contractId}, ${actualIndex}, ${i})"><img src="${imgData}">${(i === 3 && h.images.length > 4) ? `<div class="more-count">+${h.images.length - 4}</div>` : ''}</div>`; });
+            imagesHtml = '<div class="visit-gallery" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">';
+            h.images.forEach((fileData, i) => { 
+                let isPdf = fileData.startsWith('data:application/pdf');
+                if(isPdf) {
+                    imagesHtml += `<a href="${fileData}" download="تقرير_${h.date}.pdf" class="badge badge-red" style="text-decoration:none; padding:10px; font-size:0.85rem;"><i class="fa-solid fa-file-pdf" style="margin-left:5px;"></i> تحميل الـ PDF</a>`;
+                } else {
+                    if(i > 3) return; 
+                    imagesHtml += `<div class="visit-img-thumb" onclick="openLightboxForVisit(${contractId}, ${actualIndex}, ${i})"><img src="${fileData}">${(i === 3 && h.images.length > 4) ? `<div class="more-count">+${h.images.length - 4}</div>` : ''}</div>`; 
+                }
+            });
             imagesHtml += '</div>';
         }
         container.innerHTML += `<div class="visit-card"><div class="visit-header"><div class="visit-date"><i class="fa-regular fa-calendar"></i> ${h.date}</div><div class="visit-actions"><button class="action-btn btn-icon-edit" onclick="openEditVisit(${contractId}, ${actualIndex})"><i class="fa-solid fa-pen"></i></button><button class="action-btn btn-icon-del" onclick="deleteVisit(${contractId}, ${actualIndex})"><i class="fa-solid fa-trash"></i></button></div></div><div class="visit-body" style="white-space: pre-line;">${h.notes}</div>${imagesHtml}</div>`;
@@ -1142,21 +1500,71 @@ document.getElementById('visitForm').addEventListener('submit', async (e) => {
     const assetIdxVal = document.getElementById('reportAssetIndex').value;
     const assetIndex = assetIdxVal !== '' ? parseInt(assetIdxVal) : null;
     const idx = contracts.findIndex(x => x.id === id);
+    
     if(idx !== -1) {
         const date = document.getElementById('visitDate').value; 
         let notes = document.getElementById('visitNotes').value;
+        
+        let deductedPartsText = "";
+        
+        const checkedBoxes = document.querySelectorAll('.vic-checkbox:checked');
+        
+        checkedBoxes.forEach(chk => {
+            const partId = chk.value;
+            const input = document.getElementById(`vic-input-${partId}`);
+            const qtyToDeduct = parseInt(input.value) || 0;
+            const partName = input.getAttribute('data-name');
+            
+            if (qtyToDeduct > 0) {
+                const partIndex = contracts[idx].inventory.findIndex(p => p.id === partId);
+                if(partIndex !== -1) {
+                    contracts[idx].inventory[partIndex].qty -= qtyToDeduct;
+                    deductedPartsText += `- تم سحب (${qtyToDeduct}) ${partName}\n`;
+                }
+            }
+        });
+
+        if (deductedPartsText !== "") {
+            notes += "\n\n📦 تم سحب القطع التالية من مخزن العميل:\n" + deductedPartsText;
+        }
+
         const oilOption = document.querySelector('input[name="oilFilterOption"]:checked');
         if (oilOption) { if (oilOption.value === '1') notes += "\n- تم تغيير فلتر زيت"; else if (oilOption.value === '2') notes += "\n- تم تغيير عدد 2 فلتر زيت"; }
+        
+        const extraParts = document.querySelectorAll('input[name="extraParts"]:checked');
+        if (extraParts.length > 0) {
+            notes += "\n\nقطع غيار إضافية تم تغييرها (خارج المخزن):\n";
+            extraParts.forEach(part => {
+                notes += `- ${part.value}\n`;
+            });
+        }
+
         const files = document.getElementById('visitFiles').files; 
         let imagesData = [];
         if(files.length > 0) imagesData = await processImages(files);
+        
         if(!contracts[idx].history) contracts[idx].history = [];
         contracts[idx].history.push({ date, notes, images: imagesData, assetIndex: assetIndex });
-        if(contracts[idx].visitsDone < contracts[idx].totalVisits) contracts[idx].visitsDone++;
-        saveData(); renderAll(); 
+        
+        updateVisitsCount(idx);
+        
+        saveData(); 
+        renderAll(); 
+        
+        document.getElementById('count-done').innerText = contracts[idx].visitsDone;
+        document.getElementById('count-left').innerText = Math.max(0, contracts[idx].totalVisits - contracts[idx].visitsDone);
+        
         document.getElementById('visitNotes').value = ''; document.getElementById('visitFiles').value = ''; document.getElementById('files-preview').innerText = ''; 
         const radios = document.getElementsByName('oilFilterOption'); radios.forEach(r => r.checked = false);
+        const extraCbs = document.getElementsByName('extraParts'); extraCbs.forEach(cb => cb.checked = false);
+        
+        if (window.resetMaintButtons) resetMaintButtons();
+
         renderTimeline(contracts[idx].history, id, assetIndex);
+        
+        const selectedAssetName = contracts[idx].assets[assetIndex] ? contracts[idx].assets[assetIndex].name : null;
+        renderVisitInventoryDeduction(id, selectedAssetName); 
+        
         showToast('تم تسجيل الزيارة للماكينة بنجاح');
     }
     btn.innerHTML = originalText; btn.disabled = false;
@@ -1173,42 +1581,77 @@ function openEditVisit(cId, vIdx) {
     document.getElementById('editVisitModal').style.display = 'flex';
 }
 function closeEditModal() { document.getElementById('editVisitModal').style.display = 'none'; }
+
 function renderEditImages(images) {
     const container = document.getElementById('edit-img-container'); container.innerHTML = '';
     images.forEach((img) => {
         const div = document.createElement('div'); div.className = 'edit-img-item';
-        div.innerHTML = `<img src="${img}"><div class="delete-img-btn"><i class="fa-solid fa-xmark"></i></div>`;
+        let isPdf = img.startsWith('data:application/pdf');
+        if(isPdf) {
+            div.innerHTML = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#fee2e2; color:#ef4444; font-size:2.5rem;"><i class="fa-solid fa-file-pdf"></i></div><div class="delete-img-btn"><i class="fa-solid fa-xmark"></i></div>`;
+        } else {
+            div.innerHTML = `<img src="${img}"><div class="delete-img-btn"><i class="fa-solid fa-xmark"></i></div>`;
+        }
         div.querySelector('.delete-img-btn').onclick = function(e) { e.stopPropagation(); div.remove(); };
         container.appendChild(div);
     });
 }
+
 document.getElementById('editVisitForm').addEventListener('submit', async (e) => {
     e.preventDefault(); const btn = e.target.querySelector('button'); const originalText = btn.innerHTML;
     btn.innerHTML = 'جاري الحفظ...'; btn.disabled = true;
     const cId = parseInt(document.getElementById('editVisitContractId').value); const vIdx = parseInt(document.getElementById('editVisitIndex').value);
     const date = document.getElementById('editVisitDate').value; const notes = document.getElementById('editVisitNotes').value;
     const newFiles = document.getElementById('editVisitNewFiles').files; const currentImgs = [];
-    document.querySelectorAll('#edit-img-container img').forEach(img => currentImgs.push(img.src));
-    let finalImages = [...currentImgs]; if(newFiles.length > 0) finalImages = [...finalImages, ...await processImages(newFiles)];
-    const oldVisit = contracts.find(x => x.id === cId).history[vIdx];
+    
+    const cIdx = contracts.findIndex(x => x.id === cId);
+    const oldVisit = contracts[cIdx].history[vIdx];
+    let finalImages = oldVisit.images || []; 
+    
+    const remainingFiles = [];
+    document.querySelectorAll('#edit-img-container .edit-img-item').forEach((item, index) => {
+        if(finalImages[index]) remainingFiles.push(finalImages[index]);
+    });
+    
+    finalImages = remainingFiles;
+    if(newFiles.length > 0) finalImages = [...finalImages, ...await processImages(newFiles)];
+    
     const assetIndex = oldVisit.assetIndex;
-    contracts[contracts.findIndex(x => x.id === cId)].history[vIdx] = { date, notes, images: finalImages, assetIndex: assetIndex };
+    contracts[cIdx].history[vIdx] = { date, notes, images: finalImages, assetIndex: assetIndex };
+    
+    updateVisitsCount(cIdx);
+    
     saveData(); closeEditModal(); 
-    const c = contracts.find(x => x.id === cId);
+    const c = contracts[cIdx];
     renderTimeline(c.history, cId, currentReportAssetIndex);
+    
+    document.getElementById('count-done').innerText = c.visitsDone;
+    document.getElementById('count-left').innerText = Math.max(0, c.totalVisits - c.visitsDone);
+    
     btn.innerHTML = originalText; btn.disabled = false;
     showToast('تم تعديل الزيارة بنجاح');
 });
+
 function deleteVisit(cId, vIdx) { 
     if(!confirm('حذف؟')) return; 
-    const c = contracts.find(x => x.id === cId); 
+    const cIdx = contracts.findIndex(x => x.id === cId);
+    const c = contracts[cIdx]; 
     if(c) { 
         c.history.splice(vIdx, 1); 
-        if(c.visitsDone > 0) c.visitsDone--; 
-        saveData(); renderAll(); renderTimeline(c.history, cId, currentReportAssetIndex);
+        
+        updateVisitsCount(cIdx);
+        
+        saveData(); 
+        renderAll(); 
+        renderTimeline(c.history, cId, currentReportAssetIndex);
+        
+        document.getElementById('count-done').innerText = c.visitsDone;
+        document.getElementById('count-left').innerText = Math.max(0, c.totalVisits - c.visitsDone);
+        
         showToast('تم الحذف'); 
     } 
 }
+
 function openLightboxForVisit(cId, vIdx, imgIdx) { const c = contracts.find(x => x.id === cId); currentLightboxImages = c.history[vIdx].images; currentLightboxIndex = imgIdx; updateLightbox(); document.getElementById('lightbox').style.display = 'flex'; }
 function updateLightbox() { document.getElementById('lightbox-img').src = currentLightboxImages[currentLightboxIndex]; }
 function nextLBImage() { if(currentLightboxIndex>0) { currentLightboxIndex--; updateLightbox(); } }
@@ -1225,7 +1668,7 @@ function showToast(msg, type='success') {
 function processImages(files) { return Promise.all([...files].map(file => readFileAsBase64(file))); }
 function backToReports() { document.getElementById('reports-detail-view').classList.add('hidden'); document.getElementById('reports-list-view').classList.remove('hidden'); renderReportsGrid(contracts); }
 
-// --- 17. MACHINE DETAILS MODAL LOGIC (FIXED) ---
+// --- 17. MACHINE DETAILS MODAL LOGIC ---
 
 function openMachineDetails(index) {
     const cIdx = contracts.findIndex(c => c.id === currentAssetContractId);
@@ -1234,10 +1677,12 @@ function openMachineDetails(index) {
     if (asset.type !== 'compressor') return; 
     document.getElementById('detail-machine-name').innerText = asset.name;
     document.getElementById('detail-machine-serial').innerText = `Serial: ${asset.serial} | Year: ${asset.year}`;
+    document.getElementById('detail-machine-startdate').innerHTML = `<i class="fa-solid fa-play"></i> تاريخ بدء التشغيل: ${asset.startDate || 'غير مسجل'}`;
     document.getElementById('detail-current-hours').innerText = asset.currentHours.toLocaleString();
     document.getElementById('detail-daily-hours').innerHTML = `${asset.dailyHours || 0} <small>ساعة/يوم</small>`;
     document.getElementById('detail-days-off').innerHTML = `${asset.daysOff || 0} <small>يوم/شهر</small>`;
-    renderDetailedTimeline(asset);
+    
+    renderDetailedTimeline(asset, index);
     document.getElementById('machineDetailsModal').style.display = 'flex';
 }
 
@@ -1245,7 +1690,7 @@ function closeMachineDetailsModal() {
     document.getElementById('machineDetailsModal').style.display = 'none';
 }
 
-function renderDetailedTimeline(asset) {
+function renderDetailedTimeline(asset, assetIndex) {
     const container = document.getElementById('machine-plan-timeline');
     container.innerHTML = '';
     if (!asset.maintenancePlan || asset.maintenancePlan.length === 0) {
@@ -1258,43 +1703,105 @@ function renderDetailedTimeline(asset) {
     const daysOff = asset.daysOff || 0;
     const today = new Date();
 
-    let base = 0;
-    if (asset.planBaseHours !== undefined) {
-        base = asset.planBaseHours;
-    } else if (asset.subType !== 'New') {
-        base = currentHours;
-    }
+    let nextIdx = asset.nextMaintenanceIndex || 0;
+    let completedSteps = asset.completedStepsHours || [];
+    let base = asset.planBaseHours !== undefined ? asset.planBaseHours : (asset.subType !== 'New' ? asset.currentHours : 0);
 
     asset.maintenancePlan.forEach((stepChar, i) => {
-        const targetHours = base + ((i + 1) * 2000);
-        
+        let targetHours;
         let statusClass = '';
         let statusIcon = '';
         let dateDisplay = '';
+        let actionBtn = '';
 
-        if (currentHours >= targetHours) {
+        if (i < nextIdx) {
+            targetHours = completedSteps[i] || "غير محدد";
             statusClass = 'done';
             statusIcon = '<i class="fa-solid fa-check"></i> مكتملة';
             dateDisplay = 'تم التنفيذ';
         } else {
-            const prevTarget = i === 0 ? base : (base + (i * 2000));
-            if (currentHours >= prevTarget && currentHours < targetHours) {
-                statusClass = 'next';
-                statusIcon = '<i class="fa-solid fa-spinner fa-spin"></i> القادمة';
+            targetHours = base + ((i - nextIdx + 1) * 2000);
+            
+            if (i === nextIdx) {
+                if (currentHours >= targetHours) {
+                    statusClass = 'next';
+                    statusIcon = '<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i> مستحقة فوراً';
+                } else {
+                    statusClass = 'next';
+                    statusIcon = '<i class="fa-solid fa-spinner fa-spin"></i> القادمة';
+                }
+                
+                actionBtn = `<div style="margin-top:8px;">
+                    <button onclick="markMaintenanceDone(${currentAssetContractId}, ${assetIndex}, ${i})" class="btn" style="background:var(--success); color:white; padding:4px 10px; font-size:0.8rem; border:none; border-bottom:3px solid #16a34a;">
+                        <i class="fa-solid fa-check-double"></i> تسجيل إتمام
+                    </button>
+                </div>`;
             } else {
                 statusClass = 'future';
                 statusIcon = '<i class="fa-regular fa-clock"></i> مجدولة';
             }
+
             const hoursRemaining = targetHours - currentHours;
-            if (dailyHours > 0) {
-                const calc = calculateDate(today, dailyHours, daysOff, hoursRemaining);
-                dateDisplay = calc.str; 
+            if (hoursRemaining <= 0) {
+                 dateDisplay = '<span style="color:#ef4444; font-weight:bold;">مستحقة / متأخرة</span>';
+            } else if (dailyHours > 0) {
+                
+                let calcBaseDate = today;
+                if (currentHours === 0 && asset.startDate) {
+                    calcBaseDate = new Date(asset.startDate);
+                }
+                
+                const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                dateDisplay = calc.str;
             } else {
                 dateDisplay = 'غير محدد';
             }
         }
+
         const label = getMaintenanceLabel(stepChar);
         const color = getMaintenanceColor(stepChar);
-        container.innerHTML += `<div class="tl-item ${statusClass}"><div class="tl-dot"></div><div class="tl-content"><div class="tl-info"><h5 style="color:${color}">${label}</h5><p><i class="fa-solid fa-stopwatch"></i> عند: <b>${targetHours}</b> ساعة</p><p style="margin-top:5px; font-size:0.8rem; color:#64748b">${statusIcon}</p></div><div class="tl-date">${dateDisplay}</div></div></div>`;
+        container.innerHTML += `<div class="tl-item ${statusClass}">
+            <div class="tl-dot"></div>
+            <div class="tl-content">
+                <div class="tl-info">
+                    <h5 style="color:${color}">${label}</h5>
+                    <p><i class="fa-solid fa-stopwatch"></i> عند: <b>${targetHours}</b> ساعة</p>
+                    <p style="margin-top:5px; font-size:0.8rem; color:#64748b">${statusIcon}</p>
+                    ${actionBtn}
+                </div>
+                <div class="tl-date">${dateDisplay}</div>
+            </div>
+        </div>`;
     });
 }
+
+window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
+    const cIdx = contracts.findIndex(c => c.id === cId);
+    if(cIdx === -1) return;
+    const asset = contracts[cIdx].assets[aIdx];
+
+    const exactHours = prompt(
+        `أدخل عدد ساعات الماكينة الفعلي وقت إتمام هذه الصيانة:\n(ساعات التشغيل الحالية المسجلة: ${asset.currentHours} ساعة)`, 
+        asset.currentHours
+    );
+
+    if (exactHours !== null && exactHours.trim() !== "") {
+        const hours = parseInt(exactHours);
+        if (isNaN(hours)) {
+            alert("الرجاء إدخال رقم صحيح.");
+            return;
+        }
+
+        if (!asset.completedStepsHours) asset.completedStepsHours = [];
+        
+        asset.completedStepsHours[stepIdx] = hours;
+        asset.planBaseHours = hours; 
+        asset.currentHours = Math.max(asset.currentHours, hours); 
+        asset.nextMaintenanceIndex = stepIdx + 1; 
+
+        saveData();
+        renderAll(); 
+        openMachineDetails(aIdx); 
+        showToast("تم تأكيد الإتمام وتحديث المواعيد القادمة!");
+    }
+};
