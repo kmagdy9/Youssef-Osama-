@@ -6,7 +6,6 @@
     <title>CATE System Pro</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,8 +24,8 @@
         <div class="user-profile-box">
             <div style="width:35px; height:35px; background:var(--primary); color:white; border-radius:50%; display:grid; place-items:center; font-size:0.9rem;">👤</div>
             <div>
-                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">يوسف اسامه</div>
-                <div style="font-size:0.75rem; color:var(--text-light);">مهندس صيانه</div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">خالد مجدي</div>
+                <div style="font-size:0.75rem; color:var(--text-light);">IT & Business Solutions Manager</div>
             </div>
         </div>
     </aside>
@@ -174,9 +173,12 @@
                             <i class="fa-solid fa-arrow-right"></i> رجوع للقائمة
                         </button>
                         <h2 style="margin:0;" id="asset-company-title">اسم الشركة</h2>
-                        <p style="margin:5px 0 0; font-size:0.9rem; color:var(--text-light);">إدارة الماكينات والمعدات (Compressors & Dryers)</p>
+                        <p style="margin:5px 0 0; font-size:0.9rem; color:var(--text-light);">إدارة الماكينات والمعدات (Compressors, Dryers & Vacuum Pumps)</p>
                     </div>
-                    <button class="btn btn-primary" onclick="openAddMachineModal()"><i class="fa-solid fa-plus"></i> ADD</button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn" style="background:#0284c7; color:white; border:none;" onclick="openInventoryModal()"><i class="fa-solid fa-boxes-stacked"></i> جرد قطع الغيار</button>
+                        <button class="btn btn-primary" onclick="openAddMachineModal()"><i class="fa-solid fa-plus"></i> ADD</button>
+                    </div>
                 </div>
                 
                 <div id="assets-grid-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
@@ -217,7 +219,7 @@
                         <h3 style="margin-bottom: 15px; color: var(--text-main); font-size:1rem;"><i class="fa-solid fa-1"></i> اختر الماكينة لعرض سجلها:</h3>
                         
                         <div id="report-assets-selection" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:15px;">
-                            </div>
+                        </div>
 
                         <div id="no-assets-report-msg" style="display:none; padding:20px; background:#fff; border:1px dashed #ccc; border-radius:8px; text-align:center; color:var(--text-light);">
                             <i class="fa-solid fa-circle-exclamation" style="margin-bottom:10px; display:block; font-size:1.5rem;"></i>
@@ -235,6 +237,7 @@
                         <div style="display:grid; grid-template-columns: 1fr 2fr; gap:25px;">
                             <div class="card-container card-padding" style="height:fit-content; border-top: 4px solid var(--primary);">
                                 <h3 style="margin:0 0 20px 0; font-size:1rem;">تسجيل زيارة / صيانة جديدة</h3>
+                                
                                 <form id="visitForm">
                                     <input type="hidden" id="reportContractId">
                                     <input type="hidden" id="reportAssetIndex">
@@ -244,17 +247,17 @@
                                         <input type="date" class="form-control" id="visitDate" required>
                                     </div>
 
-                                    <div id="compressor-maint-options" class="hidden" style="margin-bottom:15px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                                    <div id="compressor-maint-options" class="hidden" style="margin-bottom:15px; background:#f8fafc; padding:15px; border-radius:12px; border:1px solid #e2e8f0;">
                                         <label class="form-label" style="color:var(--primary); font-weight:bold;">1. اختر نوع الصيانة (تعبئة تلقائية):</label>
                                         
                                         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
-                                            <button type="button" class="btn" onclick="fillMaintDetails('2000')" style="background:white; border:1px solid #10b981; color:#10b981; font-size:0.85rem;">
+                                            <button type="button" class="btn maint-select-btn" data-color="#10b981" onclick="fillMaintDetails('2000', this)" style="background:white; border:1px solid #10b981; color:#10b981; font-size:0.85rem; transition: all 0.2s ease;">
                                                 <i class="fa-solid fa-check"></i> 2000 ساعة
                                             </button>
-                                            <button type="button" class="btn" onclick="fillMaintDetails('4000')" style="background:white; border:1px solid #f59e0b; color:#f59e0b; font-size:0.85rem;">
+                                            <button type="button" class="btn maint-select-btn" data-color="#f59e0b" onclick="fillMaintDetails('4000', this)" style="background:white; border:1px solid #f59e0b; color:#f59e0b; font-size:0.85rem; transition: all 0.2s ease;">
                                                 <i class="fa-solid fa-check-double"></i> 4000 ساعة
                                             </button>
-                                            <button type="button" class="btn" onclick="toggle8000Options()" style="background:white; border:1px solid #ef4444; color:#ef4444; font-size:0.85rem;">
+                                            <button type="button" class="btn maint-select-btn" id="btn-8000-main" data-color="#ef4444" onclick="toggle8000Options(this)" style="background:white; border:1px solid #ef4444; color:#ef4444; font-size:0.85rem; transition: all 0.2s ease;">
                                                 <i class="fa-solid fa-triangle-exclamation"></i> 8000 ساعة
                                             </button>
                                         </div>
@@ -262,25 +265,78 @@
                                         <div id="maint-8000-sub-options" class="hidden" style="margin-bottom:15px; padding:10px; background:#fff; border:1px dashed #ef4444; border-radius:6px;">
                                             <p style="margin:0 0 8px 0; font-size:0.8rem; font-weight:bold;">اختر نوع الضاغط لعملية 8000 ساعة:</p>
                                             <div style="display:flex; gap:10px;">
-                                                <button type="button" class="btn" onclick="fillMaintDetails('8000-GA')" style="background:#ef4444; color:white; font-size:0.8rem;">
+                                                <button type="button" class="btn maint-select-btn" data-color="#ef4444" onclick="fillMaintDetails('8000-GA', this)" style="background:white; border:1px solid #ef4444; color:#ef4444; font-size:0.8rem; transition: all 0.2s ease;">
                                                     GA Compressor
                                                 </button>
-                                                <button type="button" class="btn" onclick="fillMaintDetails('8000-VSD')" style="background:#be123c; color:white; font-size:0.8rem;">
+                                                <button type="button" class="btn maint-select-btn" data-color="#be123c" onclick="fillMaintDetails('8000-VSD', this)" style="background:white; border:1px solid #be123c; color:#be123c; font-size:0.8rem; transition: all 0.2s ease;">
                                                     GA VSD Compressor
                                                 </button>
                                             </div>
                                         </div>
 
-                                        <div style="padding-top:10px; border-top:1px solid #e2e8f0;">
-                                            <label class="form-label" style="color:var(--text-main); font-size:0.9rem; margin-bottom:8px;">2. حالة فلتر الزيت (اختر واحدة):</label>
-                                            <div style="display:flex; gap:20px; flex-wrap:wrap;">
-                                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; font-size:0.9rem;">
-                                                    <input type="radio" name="oilFilterOption" value="1" style="width:18px; height:18px;"> 
-                                                    تم تغيير فلتر زيت (1)
+                                        <div style="padding-top:15px; border-top:1px dashed #cbd5e1; margin-top:10px;">
+                                            <label class="form-label" style="color:var(--primary-dark); font-size:0.95rem; font-weight:800; margin-bottom:12px;"><i class="fa-solid fa-droplet" style="color:#f59e0b; margin-left:5px;"></i> 2. حالة فلتر الزيت (اختر واحدة):</label>
+                                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                                                <label class="custom-maint-card">
+                                                    <input type="radio" name="oilFilterOption" value="1"> 
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">تغيير فلتر زيت (1)</span>
                                                 </label>
-                                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; font-size:0.9rem;">
-                                                    <input type="radio" name="oilFilterOption" value="2" style="width:18px; height:18px;"> 
-                                                    تم تغيير فلترين زيت (2)
+                                                <label class="custom-maint-card">
+                                                    <input type="radio" name="oilFilterOption" value="2"> 
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check-double"></i></div>
+                                                    <span class="cmc-text">تغيير فلترين زيت (2)</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div style="padding-top:20px; border-top:1px dashed #cbd5e1; margin-top:20px;">
+                                            <label class="form-label" style="color:var(--primary-dark); font-size:0.95rem; font-weight:800; margin-bottom:12px;"><i class="fa-solid fa-gears" style="color:#64748b; margin-left:5px;"></i> 3. قطع غيار إضافية تم تغييرها (خارج المخزن):</label>
+                                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px;">
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (throttle valve kit)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Throttle valve kit</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (Coupling element)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Coupling element</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (Inlet valve kit)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Inlet valve kit</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (Silencer)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Silencer</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (non return valve)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Non return valve</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (Dust filter)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Dust filter</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (gas blast filter)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Gas blast filter</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تغيير (Blow Off Valve)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Blow Off Valve</span>
+                                                </label>
+                                                <label class="custom-maint-card">
+                                                    <input type="checkbox" name="extraParts" value="تم تعيير (Brether valve kit)">
+                                                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                                                    <span class="cmc-text">Brether valve kit</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -289,9 +345,17 @@
                                     <div id="dryer-maint-options" class="hidden" style="margin-bottom:15px; background:#fff7ed; padding:15px; border-radius:8px; border:1px solid #ffedd5;">
                                         <label class="form-label" style="color:var(--warning); font-weight:bold; color:#c2410c;">خيارات صيانة المجفف (Dryer):</label>
                                         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                            <button type="button" class="btn" onclick="fillMaintDetails('DRYER-DRAIN')" style="background:white; border:1px solid #f97316; color:#f97316; font-size:0.9rem;">
+                                            <button type="button" class="btn maint-select-btn" data-color="#f97316" onclick="fillMaintDetails('DRYER-DRAIN', this)" style="background:white; border:1px solid #f97316; color:#f97316; font-size:0.9rem; transition: all 0.2s ease;">
                                                 <i class="fa-solid fa-wrench"></i> تغيير طقم تصريف (Auto Drain Kit)
                                             </button>
+                                        </div>
+                                    </div>
+
+                                    <div id="visit-inventory-deduction" class="hidden" style="margin-bottom:20px; background:#f0f9ff; padding:15px; border-radius:12px; border:1px solid #bae6fd;">
+                                        <label class="form-label" style="color:var(--primary); font-size:0.95rem; font-weight:800; margin-bottom:12px;">
+                                            <i class="fa-solid fa-boxes-stacked" style="color:#0ea5e9; margin-left:5px;"></i> سحب قطع غيار من جرد العميل <span id="inv-machine-name" style="color:#ef4444;"></span>:
+                                        </label>
+                                        <div id="visit-inventory-list">
                                         </div>
                                     </div>
 
@@ -300,13 +364,13 @@
                                         <textarea class="form-control" id="visitNotes" rows="6" placeholder="اكتب التفاصيل يدوياً أو اختر من الأزرار أعلاه..." required></textarea>
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">مرفقات (صور)</label>
+                                        <label class="form-label">مرفقات (تقرير PDF)</label>
                                         <div class="custom-upload" onclick="document.getElementById('visitFiles').click()">
-                                            <i class="fa-solid fa-images" style="font-size:1.5rem; margin-bottom:10px; color:var(--text-light);"></i>
-                                            <p style="margin:0; font-size:0.85rem;">اضغط لرفع الصور</p>
-                                            <input type="file" id="visitFiles" hidden multiple onchange="showFilePreview(this)" accept="image/*">
+                                            <i class="fa-solid fa-file-pdf" style="font-size:1.5rem; margin-bottom:10px; color:#ef4444;"></i>
+                                            <p style="margin:0; font-size:0.85rem;">اضغط لرفع ملف التقرير (PDF)</p>
+                                            <input type="file" id="visitFiles" hidden accept=".pdf" onchange="showFilePreview(this)">
                                         </div>
-                                        <div id="files-preview" class="file-list-preview"></div>
+                                        <div id="files-preview" class="file-list-preview" style="margin-top:5px;"></div>
                                     </div>
                                     <button type="submit" class="btn btn-primary" style="width:100%"><i class="fa-solid fa-check"></i> حفظ في سجل الماكينة</button>
                                 </form>
@@ -314,7 +378,7 @@
 
                             <div>
                                 <div id="history-timeline" class="timeline-container">
-                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -335,6 +399,18 @@
         <div class="lb-counter" id="lightbox-counter">1 / 1</div>
     </div>
 
+    <div id="inventoryModal" class="modal">
+        <div class="modal-content" style="width: 950px; max-width: 95%; background: #f1f5f9; padding:0; overflow:hidden;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 25px; background:white; border-bottom:1px solid var(--border-color);">
+                <h3 style="margin:0; color:var(--primary); font-size: 1.5rem;"><i class="fa-solid fa-boxes-stacked"></i> جرد قطع غيار الماكينات</h3>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.5rem; color:var(--text-light);" onclick="closeInventoryModal()"></i>
+            </div>
+            
+            <div id="inventory-container" class="inv-container" style="padding: 25px; max-height: 75vh; overflow-y: auto;">
+            </div>
+        </div>
+    </div>
+
     <div id="waModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -343,37 +419,15 @@
             </div>
             <div class="modal-body">
                 <p style="margin-bottom:15px; color:#64748b; font-size:0.9rem;">اختر نوع الرسالة المراد إرسالها للعميل:</p>
-                
                 <div class="wa-grid-container">
                     <button class="wa-btn full-width" onclick="sendWAMessage('schedule')">
-                        <i class="fa-solid fa-calendar-days"></i>
-                        <span>جدول الصيانة المتوقع</span>
+                        <i class="fa-solid fa-calendar-days"></i><span>جدول الصيانة المتوقع</span>
                     </button>
-    
-                    <button class="wa-btn" onclick="sendWAMessage('2000')">
-                        <i class="fa-solid fa-clock"></i>
-                        <span>تذكير 2000 ساعة</span>
-                    </button>
-    
-                    <button class="wa-btn" onclick="sendWAMessage('4000')">
-                        <i class="fa-solid fa-filter"></i>
-                        <span>تذكير 4000 ساعة</span>
-                    </button>
-    
-                    <button class="wa-btn" onclick="sendWAMessage('8000')">
-                        <i class="fa-solid fa-screwdriver-wrench"></i>
-                        <span>تذكير 8000 ساعة</span>
-                    </button>
-    
-                    <button class="wa-btn" onclick="sendWAMessage('16000')">
-                        <i class="fa-solid fa-gears"></i>
-                        <span>تذكير 16000 ساعة</span>
-                    </button>
-                    
-                    <button class="wa-btn alert-btn" onclick="sendWAMessage('24000')">
-                        <i class="fa-solid fa-rotate"></i>
-                        <span>تذكير عمرة 24000</span>
-                    </button>
+                    <button class="wa-btn" onclick="sendWAMessage('2000')"><i class="fa-solid fa-clock"></i><span>تذكير 2000 ساعة</span></button>
+                    <button class="wa-btn" onclick="sendWAMessage('4000')"><i class="fa-solid fa-filter"></i><span>تذكير 4000 ساعة</span></button>
+                    <button class="wa-btn" onclick="sendWAMessage('8000')"><i class="fa-solid fa-screwdriver-wrench"></i><span>تذكير 8000 ساعة</span></button>
+                    <button class="wa-btn" onclick="sendWAMessage('16000')"><i class="fa-solid fa-gears"></i><span>تذكير 16000 ساعة</span></button>
+                    <button class="wa-btn alert-btn" onclick="sendWAMessage('24000')"><i class="fa-solid fa-rotate"></i><span>تذكير عمرة 24000</span></button>
                 </div>
             </div>
         </div>
@@ -438,9 +492,7 @@
             <form id="unholdForm">
                 <input type="hidden" id="unholdContractId">
                 <div style="background:#f0fdf4; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #bbf7d0;">
-                    <p style="margin:0; font-size:0.9rem; color:#166534;">
-                        سيتم إعادة تشغيل العقد. يرجى إدخال التواريخ الجديدة لاستكمال الدورة.
-                    </p>
+                    <p style="margin:0; font-size:0.9rem; color:#166534;">سيتم إعادة تشغيل العقد. يرجى إدخال التواريخ الجديدة لاستكمال الدورة.</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label">تاريخ البداية الجديد</label>
@@ -463,15 +515,10 @@
             </div>
             
             <div id="machine-type-selection">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
-                    <div class="type-card" onclick="selectMachineType('compressor')">
-                        <i class="fa-solid fa-wind"></i>
-                        <h4>Compressor</h4>
-                    </div>
-                    <div class="type-card" onclick="selectMachineType('dryer')">
-                        <i class="fa-solid fa-temperature-arrow-down"></i>
-                        <h4>Dryer</h4>
-                    </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
+                    <div class="type-card" onclick="selectMachineType('compressor')"><i class="fa-solid fa-wind"></i><h4>Compressor</h4></div>
+                    <div class="type-card" onclick="selectMachineType('dryer')"><i class="fa-solid fa-temperature-arrow-down"></i><h4>Dryer</h4></div>
+                    <div class="type-card" onclick="selectMachineType('vacuum')"><i class="fa-solid fa-fan"></i><h4>Vacuum Pump</h4></div>
                 </div>
             </div>
 
@@ -481,22 +528,21 @@
                     <div class="form-group">
                         <label class="form-label">اسم المجفف (Dryer Name)</label>
                         <div style="display: flex; gap: 20px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
-                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;">
-                                <input type="radio" name="dryerName" value="FD dryer" checked> 
-                                FD dryer
-                            </label>
-                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;">
-                                <input type="radio" name="dryerName" value="FX dryer"> 
-                                FX dryer
-                            </label>
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerName" value="FD dryer" checked> FD dryer</label>
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerName" value="FX dryer"> FX dryer</label>
                         </div>
                     </div>
-
+                    <div class="form-group">
+                        <label class="form-label">قدرة المجفف (Capacity)</label>
+                        <div style="display: flex; gap: 20px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerCapacity" value="FX350" checked> FX350</label>
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerCapacity" value="FD100"> FD100</label>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label class="form-label">الرقم التسلسلي (Serial Number)</label>
                         <input type="text" class="form-control" id="dryerSerial" required>
                     </div>
-
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">سنة التصنيع</label>
@@ -505,14 +551,8 @@
                         <div class="form-group">
                             <label class="form-label">نوع الفريون</label>
                             <div style="display: flex; gap: 20px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
-                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;">
-                                    <input type="radio" name="dryerFreon" value="R410" checked> 
-                                    R410
-                                </label>
-                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;">
-                                    <input type="radio" name="dryerFreon" value="R404"> 
-                                    R404
-                                </label>
+                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerFreon" value="R410" checked> R410</label>
+                                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerFreon" value="R404"> R404</label>
                             </div>
                         </div>
                     </div>
@@ -520,15 +560,24 @@
                 </form>
             </div>
 
+            <div id="vacuum-form-section" class="hidden">
+                <button class="btn" onclick="resetMachineModal()" style="padding:5px 10px; font-size:0.8rem; margin-bottom:15px; background:#f1f5f9;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
+                <form id="vacuumForm">
+                    <div class="form-group"><label class="form-label">اسم الـ Vacuum pump</label><input type="text" class="form-control" id="vacuumName" required></div>
+                    <div class="form-group"><label class="form-label">الرقم التسلسلي (Serial Number)</label><input type="text" class="form-control" id="vacuumSerial" required></div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">سنة التصنيع</label><input type="number" class="form-control" id="vacuumYear" placeholder="2024" required></div>
+                        <div class="form-group"><label class="form-label">الـ Bar</label><input type="number" step="any" class="form-control" id="vacuumBar" placeholder="مثال: 8" required></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">حفظ Vacuum pump</button>
+                </form>
+            </div>
+
             <div id="compressor-choice-section" class="hidden">
                  <button class="btn" onclick="resetMachineModal()" style="padding:5px 10px; font-size:0.8rem; margin-bottom:15px; background:#f1f5f9;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
                  <div style="display:flex; flex-direction:column; gap:15px;">
-                     <button class="btn btn-primary" onclick="showCompressorForm('new')" style="justify-content:center; padding:15px;">
-                         New Compressor (Zero)
-                     </button>
-                     <button class="btn" onclick="showCompressorForm('used')" style="justify-content:center; padding:15px; background:var(--secondary); color:white;">
-                         Used / Existing Compressor
-                     </button>
+                     <button class="btn btn-primary" onclick="showCompressorForm('new')" style="justify-content:center; padding:15px;">New Compressor (Zero)</button>
+                     <button class="btn" onclick="showCompressorForm('used')" style="justify-content:center; padding:15px; background:var(--secondary); color:white;">Used / Existing Compressor</button>
                  </div>
             </div>
 
@@ -538,39 +587,25 @@
                     <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px;">
                         <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--primary);">بيانات الماكينة</h4>
                         <div class="form-row">
-                            <div class="form-group" style="margin-bottom:10px;">
-                                <label class="form-label">اسم الـ Compressor</label>
-                                <input type="text" class="form-control" id="compName" required>
-                            </div>
-                            <div class="form-group" style="margin-bottom:10px;">
-                                <label class="form-label">Serial Number</label>
-                                <input type="text" class="form-control" id="compSerial" required>
-                            </div>
+                            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">اسم الـ Compressor</label><input type="text" class="form-control" id="compName" required></div>
+                            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Serial Number</label><input type="text" class="form-control" id="compSerial" required></div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group" style="margin:0;">
-                                <label class="form-label">سنة التصنيع</label>
-                                <input type="number" class="form-control" id="compYear" placeholder="2020" required>
-                            </div>
-                            
-                            <div class="form-group" id="currentHoursContainer" style="margin:0;">
-                                <label class="form-label">ساعات التشغيل الحالية (Actual)</label>
-                                <input type="number" class="form-control" id="compCurrentHours" placeholder="مثال: 12000" onkeyup="updatePlanPreview()">
-                            </div>
+                            <div class="form-group" style="margin:0;"><label class="form-label">سنة التصنيع</label><input type="number" class="form-control" id="compYear" placeholder="2020" required></div>
+                            <div class="form-group" style="margin:0;"><label class="form-label">تاريخ بدء التشغيل</label><input type="date" class="form-control" id="compStartDate" required></div>
+                        </div>
+                        
+                        <div class="form-row" id="hoursDataContainer" style="margin-top:15px; display:none;">
+                            <div class="form-group" style="margin:0;"><label class="form-label" style="color:var(--primary);">ساعات آخر صيانة تمت</label><input type="number" class="form-control" id="compLastMaintHours" placeholder="مثال: 2000" onkeyup="updatePlanPreview()"></div>
+                            <div class="form-group" style="margin:0;"><label class="form-label" style="color:var(--warning);">ساعات التشغيل الحالية</label><input type="number" class="form-control" id="compCurrentHours" placeholder="مثال: 2500" onkeyup="updatePlanPreview()"></div>
                         </div>
                     </div>
 
                     <div style="background:#f0f9ff; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #bae6fd;">
                         <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:#0369a1;">بيانات التشغيل (لحساب المواعيد)</h4>
                         <div class="form-row">
-                            <div class="form-group" style="margin:0;">
-                                <label class="form-label">ساعات تشغيل / يوم</label>
-                                <input type="number" class="form-control" id="compDailyHours" placeholder="8" onkeyup="updatePlanPreview()" required>
-                            </div>
-                            <div class="form-group" style="margin:0;">
-                                <label class="form-label">أيام إجازة / شهر</label>
-                                <input type="number" class="form-control" id="compDaysOff" placeholder="4" onkeyup="updatePlanPreview()" required>
-                            </div>
+                            <div class="form-group" style="margin:0;"><label class="form-label">ساعات تشغيل / يوم</label><input type="number" class="form-control" id="compDailyHours" placeholder="8" onkeyup="updatePlanPreview()" required></div>
+                            <div class="form-group" style="margin:0;"><label class="form-label">أيام إجازة / شهر</label><input type="number" class="form-control" id="compDaysOff" placeholder="4" onkeyup="updatePlanPreview()" required></div>
                         </div>
                     </div>
 
@@ -586,18 +621,9 @@
                             <div class="plan-btn plan-btn-D" onclick="addPlanStep('D')">D<span>16000</span></div>
                             <div class="plan-btn plan-btn-E" onclick="addPlanStep('E')">E<span>24000</span></div>
                         </div>
-                        
-                        <div class="plan-timeline" id="planTimelineContainer">
-                            <div style="text-align:center; color:#aaa; font-size:0.85rem; padding-top:20px;">
-                                اضغط على الأزرار لترتيب الصيانات القادمة<br>
-                                (كل خطوة تضيف 2000 ساعة)
-                            </div>
-                        </div>
-                        <div style="text-align:left; margin-top:5px;">
-                            <button type="button" class="btn" style="color:var(--danger); font-size:0.8rem; padding:0;" onclick="clearPlan()">مسح الخطة</button>
-                        </div>
+                        <div class="plan-timeline" id="planTimelineContainer"><div style="text-align:center; color:#aaa; font-size:0.85rem; padding-top:20px;">اضغط على الأزرار لترتيب الصيانات القادمة</div></div>
+                        <div style="text-align:left; margin-top:5px;"><button type="button" class="btn" style="color:var(--danger); font-size:0.8rem; padding:0;" onclick="clearPlan()">مسح الخطة</button></div>
                     </div>
-
                     <button type="submit" class="btn btn-primary" style="width:100%;">حفظ الـ Compressor</button>
                 </form>
             </div>
@@ -611,30 +637,11 @@
                 <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.2rem; color:var(--text-light);" onclick="closeEditModal()"></i>
             </div>
             <form id="editVisitForm">
-                <input type="hidden" id="editVisitContractId">
-                <input type="hidden" id="editVisitIndex">
-                <div class="form-group">
-                    <label class="form-label">تاريخ الزيارة</label>
-                    <input type="date" class="form-control" id="editVisitDate" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">تفاصيل الزيارة</label>
-                    <textarea class="form-control" id="editVisitNotes" rows="4" required></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label" style="display:flex; justify-content:space-between;">
-                        <span>إدارة الصور (سحب وإفلات لترتيب الصور)</span>
-                        <span style="font-size:0.75rem; color:var(--success)"><i class="fa-solid fa-arrows-up-down-left-right"></i> اسحب للترتيب</span>
-                    </label>
-                    <div id="edit-img-container" class="edit-img-grid"></div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">إضافة صور جديدة</label>
-                    <input type="file" id="editVisitNewFiles" class="form-control" multiple accept="image/*">
-                </div>
-
+                <input type="hidden" id="editVisitContractId"><input type="hidden" id="editVisitIndex">
+                <div class="form-group"><label class="form-label">تاريخ الزيارة</label><input type="date" class="form-control" id="editVisitDate" required></div>
+                <div class="form-group"><label class="form-label">تفاصيل الزيارة</label><textarea class="form-control" id="editVisitNotes" rows="4" required></textarea></div>
+                <div class="form-group"><label class="form-label">المرفقات الحالية</label><div id="edit-img-container" class="edit-img-grid"></div></div>
+                <div class="form-group"><label class="form-label">إضافة مرفق جديد (PDF)</label><input type="file" id="editVisitNewFiles" class="form-control" accept=".pdf"></div>
                 <button type="submit" class="btn btn-primary" style="width:100%">حفظ التعديلات</button>
             </form>
         </div>
@@ -645,44 +652,19 @@
             <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:20px;">
                 <div>
                     <h2 style="margin:0; color:var(--primary);" id="detail-machine-name">اسم الماكينة</h2>
-                    <p style="margin:5px 0 0; color:var(--text-light); font-size:0.9rem;" id="detail-machine-serial">Serial: 123456</p>
+                    <p style="margin:5px 0 0; color:var(--text-light); font-size:0.9rem;" id="detail-machine-serial"></p>
+                    <p style="margin:5px 0 0; color:var(--info); font-size:0.85rem; font-weight:bold;" id="detail-machine-startdate"></p>
                 </div>
-                <div class="icon-btn" onclick="closeMachineDetailsModal()" style="background:white;">
-                    <i class="fa-solid fa-xmark"></i>
-                </div>
+                <div class="icon-btn" onclick="closeMachineDetailsModal()" style="background:white;"><i class="fa-solid fa-xmark"></i></div>
             </div>
-
             <div class="machine-stats-row">
-                <div class="m-stat-card">
-                    <div class="icon-box blue"><i class="fa-solid fa-clock"></i></div>
-                    <div>
-                        <span class="label">ساعات العمل (Total)</span>
-                        <h3 id="detail-current-hours">0</h3>
-                    </div>
-                </div>
-                <div class="m-stat-card">
-                    <div class="icon-box green"><i class="fa-solid fa-gauge-high"></i></div>
-                    <div>
-                        <span class="label">معدل التشغيل اليومي</span>
-                        <h3 id="detail-daily-hours">0 <small>ساعة/يوم</small></h3>
-                    </div>
-                </div>
-                <div class="m-stat-card">
-                    <div class="icon-box orange"><i class="fa-solid fa-calendar-xmark"></i></div>
-                    <div>
-                        <span class="label">أيام الراحة</span>
-                        <h3 id="detail-days-off">0 <small>يوم/شهر</small></h3>
-                    </div>
-                </div>
+                <div class="m-stat-card"><div class="icon-box blue"><i class="fa-solid fa-clock"></i></div><div><span class="label">ساعات العمل (Total)</span><h3 id="detail-current-hours">0</h3></div></div>
+                <div class="m-stat-card"><div class="icon-box green"><i class="fa-solid fa-gauge-high"></i></div><div><span class="label">معدل التشغيل</span><h3 id="detail-daily-hours">0 <small>ساعة/يوم</small></h3></div></div>
+                <div class="m-stat-card"><div class="icon-box orange"><i class="fa-solid fa-calendar-xmark"></i></div><div><span class="label">أيام الراحة</span><h3 id="detail-days-off">0 <small>يوم/شهر</small></h3></div></div>
             </div>
-
             <div style="background:white; border-radius:12px; padding:20px; border:1px solid var(--border-color); margin-top:20px;">
-                <h4 style="margin:0 0 20px 0; color:var(--primary); display:flex; align-items:center; gap:10px;">
-                    <i class="fa-solid fa-list-check"></i> جدول خطة الصيانة وتوقعاتها
-                </h4>
-                
-                <div class="timeline-wrapper" id="machine-plan-timeline">
-                    </div>
+                <h4 style="margin:0 0 20px 0; color:var(--primary); display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-list-check"></i> جدول خطة الصيانة وتوقعاتها</h4>
+                <div class="timeline-wrapper" id="machine-plan-timeline"></div>
             </div>
         </div>
     </div>
@@ -690,7 +672,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    
     <script src="script.js"></script>
 </body>
 </html>
