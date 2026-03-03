@@ -11,6 +11,13 @@ contracts.forEach(c => {
     } else {
         c.visitsDone = 0;
     }
+
+    // ضبط تاريخ التحديث للماكينات القديمة لضمان استقرار التواريخ
+    c.assets.forEach(a => {
+        if (a.type === 'compressor' && a.currentHours > 0 && !a.lastUpdated) {
+            a.lastUpdated = getLocalDateString();
+        }
+    });
 });
 
 // Global Variables
@@ -24,14 +31,49 @@ let currentMaintenancePlan = [];
 let currentCompressorMode = 'used'; 
 let editingAssetIndex = null; 
 let currentReportAssetIndex = null;
+let currentActiveTaskType = null; 
 
-// --- AUTOCOMPLETE TEXT TEMPLATES ---
-const MAINT_TEMPLATES = {
-    '2000': `صيانة 2000 ساعة:\n1- تم تغيير فلتر هواء`,
-    '4000': `صيانة 4000 ساعة:\n1- تم تغيير فلتر هواء\n2- تم تغيير فاصل الزيت\n3- تم تغيير الزيت`,
-    '8000-GA': `عمرة 8000 ساعة (GA):\n1- تم تغيير فلتر هواء\n2- تم تغيير فاصل الزيت\n3- تم تغيير الزيت\n4- تم تغيير (Thermostatic valve)\n5- تم تغيير (Minimum pressure valve kit)\n6- تم تغيير (Un loader valve kit)\n7- تم تغيير (Check valve kit)\n8- تم تغيير (Automatic drain kit)`,
-    '8000-VSD': `عمرة 8000 ساعة (GA VSD):\n1- تم تغيير فلتر هواء\n2- تم تغيير فاصل الزيت\n3- تم تغيير الزيت\n4- تم تغيير (Automatic drain kit)\n5- تم تغيير (Thermostatic valve)\n6- تم تغيير (Minimum pressure valve kit)`,
-    'DRYER-DRAIN': `1- تم تغيير (Automatic drain kit)`
+// --- AUTOCOMPLETE CHECKBOX TASKS ---
+const MAINT_TASKS = {
+    '2000': { 
+        title: 'صيانة 2000 ساعة:', 
+        tasks: ['تم تغيير فلتر هواء'] 
+    },
+    '4000': { 
+        title: 'صيانة 4000 ساعة:', 
+        tasks: ['تم تغيير فلتر هواء', 'تم تغيير فاصل الزيت', 'تم تغيير الزيت'] 
+    },
+    '8000-GA': { 
+        title: 'عمرة 8000 ساعة (GA):', 
+        tasks: ['تم تغيير فلتر هواء', 'تم تغيير فاصل الزيت', 'تم تغيير الزيت', 'تم تغيير (Thermostatic valve)', 'تم تغيير (Minimum pressure valve kit)', 'تم تغيير (Un loader valve kit)', 'تم تغيير (Check valve kit)', 'تم تغيير (Automatic drain kit)'] 
+    },
+    '8000-VSD': { 
+        title: 'عمرة 8000 ساعة (GA VSD):', 
+        tasks: ['تم تغيير فلتر هواء', 'تم تغيير فاصل الزيت', 'تم تغيير الزيت', 'تم تغيير (Automatic drain kit)', 'تم تغيير (Thermostatic valve)', 'تم تغيير (Minimum pressure valve kit)'] 
+    },
+    'DRYER-DRAIN': { 
+        title: 'صيانة المجفف:', 
+        tasks: ['تم تغيير طقم تصريف (Auto Drain Kit)'] 
+    },
+    // التعديل الجديد: إضافة مهام الـ Vacuum Pump
+    'VACUUM-MAINT': { 
+        title: 'صيانة طلمبة التفريغ (Vacuum Pump):', 
+        tasks: [
+            'تم تغيير (throttle valve kit)', 
+            'تم تغيير (Coupling element)', 
+            'تم تغيير (Inlet valve kit)', 
+            'تم تغيير (Silencer)', 
+            'تم تغيير (non return valve)', 
+            'تم تغيير (Dust filter)', 
+            'تم تغيير (gas blast filter)', 
+            'تم تغيير (Blow Off Valve)', 
+            'تم تعيير (Brether valve kit)'
+        ] 
+    },
+    'INSPECTION': { 
+        title: 'زيارة فحص فني دوري:', 
+        tasks: ['تم إجراء فحص ظاهري شامل للماكينة.', 'تم مراجعة وقراءة درجات الحرارة والضغوط.', 'التأكد من عمل الماكينة بكفاءة واستقرار التشغيل.', 'لا توجد أي أعطال أو حاجة لتغيير قطع غيار في الوقت الحالي.'] 
+    }
 };
 
 // DOM Elements
@@ -139,15 +181,31 @@ function calculateDate(startStr, daily, off, targetHours) {
         return { due: new Date(2100, 0, 1), reminder: new Date(2100, 0, 1), str: 'غير محدد' };
     }
 
-    let currentDate = new Date(startStr);
+    let currentDate = new Date();
+    if (typeof startStr === 'string' && startStr.includes('-')) {
+        const parts = startStr.split('-');
+        currentDate = new Date(parts[0], parts[1] - 1, parts[2]); 
+    } else if (startStr instanceof Date) {
+        currentDate = new Date(startStr);
+    }
+    
     currentDate.setHours(0, 0, 0, 0); 
     
     let remainingHours = targetHours;
     let maxIterations = 50000; 
     let iterations = 0;
 
+    if (remainingHours <= 0) {
+        const yyyy = currentDate.getFullYear();
+        const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(currentDate.getDate()).padStart(2, '0');
+        return { due: currentDate, reminder: currentDate, str: `${yyyy}-${mm}-${dd}` };
+    }
+
     while (remainingHours > 0 && iterations < maxIterations) {
         iterations++;
+        
+        currentDate.setDate(currentDate.getDate() + 1);
         
         let year = currentDate.getFullYear();
         let month = currentDate.getMonth();
@@ -156,10 +214,6 @@ function calculateDate(startStr, daily, off, targetHours) {
         let effectiveDaily = (Math.max(0, daysInMonth - off) / daysInMonth) * daily;
         
         remainingHours -= effectiveDaily;
-        
-        if (remainingHours > 0) {
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
     }
 
     const due = new Date(currentDate);
@@ -198,7 +252,7 @@ function getStatus(c) {
                     const target = base + 2000;
                     if (a.currentHours >= target) {
                         hasDueMachine = true;
-                    } else if ((target - a.currentHours) <= 200) {
+                    } else if ((target - a.currentHours) <= 50) { 
                         hasSoonMachine = true;
                     }
                 }
@@ -285,7 +339,7 @@ function renderUrgentAlerts() {
                         if(remaining <= 0) {
                             addAlertItem(container, c.company, `صيانة مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
                             alertCount++;
-                        } else if (remaining <= 200) {
+                        } else if (remaining <= 50) { 
                             addAlertItem(container, c.company, `اقتراب صيانة: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
                             alertCount++;
                         }
@@ -388,8 +442,10 @@ function renderForecastChart() {
                         if(a.currentHours < target) {
                             const remaining = target - a.currentHours;
                             
-                            let calcBaseDate = today;
-                            if (a.currentHours === 0 && a.startDate) {
+                            let calcBaseDate = new Date();
+                            if (a.lastUpdated) {
+                                calcBaseDate = new Date(a.lastUpdated);
+                            } else if (a.currentHours === 0 && a.startDate) {
                                 calcBaseDate = new Date(a.startDate);
                             }
 
@@ -661,7 +717,6 @@ function renderAssetsGrid(assets) {
     });
 }
 
-// --- NEW: INVENTORY LOGIC (MODERNIZED & CREATIVE) ---
 function openInventoryModal() {
     if(!currentAssetContractId) return;
     renderInventoryTables();
@@ -795,7 +850,6 @@ function deleteInvItem(itemId) {
     }
 }
 
-// --- NEW UI: Visit Form Inventory Deduction ---
 function renderVisitInventoryDeduction(contractId, assetName = null) {
     const container = document.getElementById('visit-inventory-list');
     const box = document.getElementById('visit-inventory-deduction');
@@ -867,7 +921,6 @@ window.changeVicQty = function(id, delta, max) {
     input.value = val;
 }
 
-// --- VISUAL FEEDBACK FOR MAINTENANCE BUTTONS ---
 window.resetMaintButtons = function() {
     document.querySelectorAll('.maint-select-btn').forEach(btn => {
         const col = btn.getAttribute('data-color');
@@ -880,33 +933,77 @@ window.resetMaintButtons = function() {
     });
 };
 
+// --- الدالة المسؤولة عن إظهار الـ Checkboxes التفاعلية ---
 window.fillMaintDetails = function(type, btnElement) {
-    const textArea = document.getElementById('visitNotes');
-    if (MAINT_TEMPLATES[type]) {
-        textArea.value = MAINT_TEMPLATES[type];
-        
-        resetMaintButtons();
-        
-        if (btnElement) {
-            const col = btnElement.getAttribute('data-color');
-            btnElement.style.background = col;
-            btnElement.style.color = 'white';
-            btnElement.style.transform = 'translateY(-2px)';
-            btnElement.style.boxShadow = `0 4px 12px ${col}60`; 
-        }
-
-        const subOpts = document.getElementById('maint-8000-sub-options');
-        
-        if (type.startsWith('8000')) {
-            const main8000 = document.getElementById('btn-8000-main');
-            if(main8000) {
-                main8000.style.background = '#ef4444';
-                main8000.style.color = 'white';
-            }
-        } else if(subOpts) {
-            subOpts.classList.add('hidden');
-        }
+    resetMaintButtons();
+    
+    if (btnElement) {
+        const col = btnElement.getAttribute('data-color');
+        btnElement.style.background = col;
+        btnElement.style.color = 'white';
+        btnElement.style.transform = 'translateY(-2px)';
+        btnElement.style.boxShadow = `0 4px 12px ${col}60`; 
     }
+
+    const subOpts = document.getElementById('maint-8000-sub-options');
+    
+    if (type.startsWith('8000')) {
+        const main8000 = document.getElementById('btn-8000-main');
+        if(main8000) {
+            main8000.style.background = '#ef4444';
+            main8000.style.color = 'white';
+        }
+    } else if(subOpts) {
+        subOpts.classList.add('hidden');
+    }
+
+    const container = document.getElementById('dynamic-tasks-container');
+    if (MAINT_TASKS[type]) {
+        currentActiveTaskType = type;
+        container.classList.remove('hidden');
+        
+        let html = `<label class="form-label" style="color:var(--primary); font-weight:bold; margin-bottom:12px;"><i class="fa-solid fa-list-check"></i> المهام المنجزة في ${MAINT_TASKS[type].title}</label>`;
+        
+        html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">`;
+        
+        MAINT_TASKS[type].tasks.forEach((task, idx) => {
+            html += `
+                <label class="custom-maint-card">
+                    <input type="checkbox" class="maint-task-checkbox" value="${task}" checked onchange="updateVisitNotesFromTasks()">
+                    <div class="cmc-indicator"><i class="fa-solid fa-check"></i></div>
+                    <span class="cmc-text" style="font-size:0.85rem; font-weight:600;">${task}</span>
+                </label>
+            `;
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+        
+        updateVisitNotesFromTasks();
+    } else {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        currentActiveTaskType = null;
+    }
+};
+
+window.updateVisitNotesFromTasks = function() {
+    if (!currentActiveTaskType || !MAINT_TASKS[currentActiveTaskType]) return;
+    
+    const checkboxes = document.querySelectorAll('.maint-task-checkbox:checked');
+    let generatedText = MAINT_TASKS[currentActiveTaskType].title + '\n';
+    
+    if (checkboxes.length === 0) {
+        generatedText += "- لم يتم تحديد مهام.\n";
+    } else {
+        checkboxes.forEach((cb, index) => {
+            if(currentActiveTaskType === 'INSPECTION' || currentActiveTaskType === 'DRYER-DRAIN' || currentActiveTaskType === 'VACUUM-MAINT') {
+                generatedText += `- ${cb.value}\n`;
+            } else {
+                generatedText += `${index + 1}- ${cb.value}\n`;
+            }
+        });
+    }
+    document.getElementById('visitNotes').value = generatedText;
 };
 
 window.toggle8000Options = function(btnElement) {
@@ -920,14 +1017,14 @@ window.toggle8000Options = function(btnElement) {
         }
     } else {
         div.classList.add('hidden');
-        const textArea = document.getElementById('visitNotes');
-        if (!textArea.value.includes('عمرة 8000')) {
-            if(btnElement) {
-                const col = btnElement.getAttribute('data-color');
-                btnElement.style.background = 'white';
-                btnElement.style.color = col;
-            }
+        if(btnElement) {
+            const col = btnElement.getAttribute('data-color');
+            btnElement.style.background = 'white';
+            btnElement.style.color = col;
         }
+        document.getElementById('dynamic-tasks-container').classList.add('hidden');
+        document.getElementById('visitNotes').value = '';
+        currentActiveTaskType = null;
     }
 };
 
@@ -962,7 +1059,7 @@ function showCompressorForm(mode) {
     document.getElementById('compressor-choice-section').classList.add('hidden');
     document.getElementById('used-compressor-form-section').classList.remove('hidden');
     
-    document.getElementById('compStartDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('compStartDate').value = getLocalDateString();
     
     const hrsContainer = document.getElementById('hoursDataContainer');
     if (mode === 'new') { 
@@ -1011,20 +1108,25 @@ function updatePlanPreview() {
     }
 
     let nextIdx = 0;
+    let baseDate = new Date(); 
+
     if (editingAssetIndex !== null && currentAssetContractId) {
         const c = contracts.find(x => x.id === currentAssetContractId);
         if (c && c.assets[editingAssetIndex]) {
-            nextIdx = c.assets[editingAssetIndex].nextMaintenanceIndex || 0;
+            const asset = c.assets[editingAssetIndex];
+            nextIdx = asset.nextMaintenanceIndex || 0;
+            if (currentHours === asset.currentHours && asset.lastUpdated) {
+                baseDate = new Date(asset.lastUpdated);
+            } else if (currentHours === 0 && asset.startDate) {
+                baseDate = new Date(asset.startDate);
+            }
         }
+    } else if ((currentCompressorMode === 'new' || currentHours === 0) && document.getElementById('compStartDate').value) {
+        baseDate = new Date(document.getElementById('compStartDate').value);
     }
     
     container.innerHTML = '';
     if (currentMaintenancePlan.length === 0) { container.innerHTML = '<div style="text-align:center; color:#aaa; font-size:0.85rem; padding-top:20px;">اضغط على الأزرار أعلاه لترتيب الصيانات القادمة...</div>'; return; }
-    
-    let baseDate = new Date(); 
-    if ((currentCompressorMode === 'new' || currentHours === 0) && document.getElementById('compStartDate').value) {
-        baseDate = new Date(document.getElementById('compStartDate').value);
-    }
 
     currentMaintenancePlan.forEach((stepChar, index) => {
         let dueHours;
@@ -1202,6 +1304,15 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
     
     const lastMaintVal = currentCompressorMode === 'new' ? 0 : (parseInt(document.getElementById('compLastMaintHours').value) || 0);
 
+    const idx = contracts.findIndex(c => c.id === currentAssetContractId);
+    let lastUpdatedDate = getLocalDateString();
+    if (idx !== -1 && editingAssetIndex !== null) {
+        const oldAsset = contracts[idx].assets[editingAssetIndex];
+        if (oldAsset && oldAsset.currentHours === currentHrsVal && oldAsset.lastUpdated) {
+            lastUpdatedDate = oldAsset.lastUpdated;
+        }
+    }
+
     const compData = {
         type: 'compressor', 
         subType: subType,
@@ -1214,11 +1325,11 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
         dailyHours: daily, 
         daysOff: off,
         maintenancePlan: currentMaintenancePlan, 
-        nextMaintenanceIndex: (editingAssetIndex !== null && contracts.find(c => c.id === currentAssetContractId).assets[editingAssetIndex].nextMaintenanceIndex) || 0,
-        completedStepsHours: (editingAssetIndex !== null && contracts.find(c => c.id === currentAssetContractId).assets[editingAssetIndex].completedStepsHours) || []
+        nextMaintenanceIndex: (editingAssetIndex !== null && contracts[idx].assets[editingAssetIndex].nextMaintenanceIndex) || 0,
+        completedStepsHours: (editingAssetIndex !== null && contracts[idx].assets[editingAssetIndex].completedStepsHours) || [],
+        lastUpdated: lastUpdatedDate 
     };
 
-    const idx = contracts.findIndex(c => c.id === currentAssetContractId);
     if (idx !== -1) {
         if (!contracts[idx].assets) contracts[idx].assets = [];
         if (editingAssetIndex !== null) {
@@ -1261,6 +1372,11 @@ form.addEventListener('submit', async (e) => {
 });
 
 // --- 14. UTILS ---
+function getLocalDateString() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function animateValue(obj, start, end, duration) {
     let startTimestamp = null;
     const step = (timestamp) => {
@@ -1325,14 +1441,16 @@ function sendWAMessage(type) {
 
         msg = `تذكير هام من شركة CATE\n\n` +
               `السادة شركة ${c.company}،\n` +
-              `نود تذكيركم بقرب موعد ${maintName} الـ ${hours} ساعة.\n` +
-              `📅 الموعد المتوقع: ${dateCalc}\n\n` +
+              `نود تذكيركم باقتراب موعد ${maintName} الـ ${hours} ساعة.\n` +
+              `⏳ (متبقي تقريباً 50 ساعة تشغيل على موعد الصيانة)\n` +
+              `📅 الموعد المتوقع تقريباً: ${dateCalc}\n\n` +
               `يرجى التنسيق لعمل اللازم للحفاظ على كفاءة المعدات.`;
     }
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
     closeWAModal();
 }
+
 window.onclick = function(e) { 
     if (e.target == modal) closeModal(); 
     if (e.target == document.getElementById('waModal')) closeWAModal(); 
@@ -1408,10 +1526,20 @@ function selectReportAsset(index) {
         el.style.borderColor = '#e2e8f0';
         el.style.background = 'white';
     });
+    
     const compOptions = document.getElementById('compressor-maint-options');
     const dryerOptions = document.getElementById('dryer-maint-options');
+    const vacuumOptions = document.getElementById('vacuum-maint-options'); 
     const options8000Div = document.getElementById('maint-8000-sub-options');
     
+    // تفريغ مربع المهام التفاعلية لو اخترت ماكينة تانية
+    const dynamicContainer = document.getElementById('dynamic-tasks-container');
+    if(dynamicContainer) {
+        dynamicContainer.classList.add('hidden');
+        dynamicContainer.innerHTML = '';
+    }
+    currentActiveTaskType = null;
+
     const radios = document.getElementsByName('oilFilterOption');
     radios.forEach(r => r.checked = false);
     const extraCbs = document.getElementsByName('extraParts');
@@ -1428,20 +1556,30 @@ function selectReportAsset(index) {
             activeCard.style.background = '#f0f9ff';
         }
         document.getElementById('selected-asset-name').innerText = contract.assets[index].name;
+        
+        // التعديل: إظهار خيارات الـ Vacuum Pump لما نختارها
         if (asset.type === 'compressor') {
             compOptions.classList.remove('hidden');
             dryerOptions.classList.add('hidden');
+            vacuumOptions.classList.add('hidden');
         } else if (asset.type === 'dryer') {
             compOptions.classList.add('hidden');
             dryerOptions.classList.remove('hidden');
+            vacuumOptions.classList.add('hidden');
+        } else if (asset.type === 'vacuum') {
+            compOptions.classList.add('hidden');
+            dryerOptions.classList.add('hidden');
+            vacuumOptions.classList.remove('hidden');
         } else {
             compOptions.classList.add('hidden');
             dryerOptions.classList.add('hidden');
+            vacuumOptions.classList.add('hidden');
         }
         options8000Div.classList.add('hidden'); 
     } else {
         compOptions.classList.add('hidden');
         dryerOptions.classList.add('hidden');
+        vacuumOptions.classList.add('hidden');
     }
     
     renderVisitInventoryDeduction(cId, selectedAssetName);
@@ -1450,11 +1588,6 @@ function selectReportAsset(index) {
     document.getElementById('reportAssetIndex').value = index !== null ? index : '';
     document.getElementById('visitNotes').value = '';
     renderTimeline(contract.history, cId, index);
-}
-
-function toggle8000Options() {
-    const div = document.getElementById('maint-8000-sub-options');
-    if (div.classList.contains('hidden')) div.classList.remove('hidden'); else div.classList.add('hidden');
 }
 
 function renderTimeline(history, contractId, filterAssetIndex = null) {
@@ -1559,6 +1692,11 @@ document.getElementById('visitForm').addEventListener('submit', async (e) => {
         const extraCbs = document.getElementsByName('extraParts'); extraCbs.forEach(cb => cb.checked = false);
         
         if (window.resetMaintButtons) resetMaintButtons();
+        
+        // إخفاء الـ Checkboxes التفاعلية بعد الحفظ
+        document.getElementById('dynamic-tasks-container').classList.add('hidden');
+        document.getElementById('dynamic-tasks-container').innerHTML = '';
+        currentActiveTaskType = null;
 
         renderTimeline(contracts[idx].history, id, assetIndex);
         
@@ -1746,8 +1884,10 @@ function renderDetailedTimeline(asset, assetIndex) {
                  dateDisplay = '<span style="color:#ef4444; font-weight:bold;">مستحقة / متأخرة</span>';
             } else if (dailyHours > 0) {
                 
-                let calcBaseDate = today;
-                if (currentHours === 0 && asset.startDate) {
+                let calcBaseDate = new Date();
+                if (asset.lastUpdated) {
+                    calcBaseDate = new Date(asset.lastUpdated);
+                } else if (asset.currentHours === 0 && asset.startDate) {
                     calcBaseDate = new Date(asset.startDate);
                 }
                 
@@ -1798,6 +1938,8 @@ window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
         asset.planBaseHours = hours; 
         asset.currentHours = Math.max(asset.currentHours, hours); 
         asset.nextMaintenanceIndex = stepIdx + 1; 
+
+        asset.lastUpdated = getLocalDateString();
 
         saveData();
         renderAll(); 
