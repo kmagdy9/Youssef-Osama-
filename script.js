@@ -1,24 +1,5 @@
 // --- 1. DATA INITIALIZATION ---
-let contracts = JSON.parse(localStorage.getItem('cate_pro_v9_clean')) || [];
-
-contracts.forEach(c => {
-    if (!c.assets) c.assets = [];
-    if (!c.inventory) c.inventory = []; 
-    
-    if (c.history && c.history.length > 0) {
-        const uniqueDates = new Set(c.history.map(h => h.date));
-        c.visitsDone = uniqueDates.size;
-    } else {
-        c.visitsDone = 0;
-    }
-
-    // ضبط تاريخ التحديث للماكينات القديمة لضمان استقرار التواريخ
-    c.assets.forEach(a => {
-        if (a.type === 'compressor' && a.currentHours > 0 && !a.lastUpdated) {
-            a.lastUpdated = getLocalDateString();
-        }
-    });
-});
+let contracts = [];
 
 // Global Variables
 let statusChart = null;
@@ -55,7 +36,6 @@ const MAINT_TASKS = {
         title: 'صيانة المجفف:', 
         tasks: ['تم تغيير طقم تصريف (Auto Drain Kit)'] 
     },
-    // التعديل الجديد: إضافة مهام الـ Vacuum Pump
     'VACUUM-MAINT': { 
         title: 'صيانة طلمبة التفريغ (Vacuum Pump):', 
         tasks: [
@@ -81,11 +61,47 @@ const modal = document.getElementById('contractModal');
 const form = document.getElementById('contractForm');
 
 // --- 2. ON LOAD ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('currentDate').innerText = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     document.getElementById('visitDate').valueAsDate = new Date();
     document.getElementById('main-search-bar').style.visibility = 'hidden';
-    renderAll();
+
+    try {
+        // تحميل البيانات من الذاكرة اللامحدودة (IndexedDB)
+        let savedData = await localforage.getItem('cate_pro_v9_clean');
+        
+        // لو مفيش بيانات، هندور في التخزين القديم عشان بياناتك متضيعش وننقلها
+        if (!savedData && localStorage.getItem('cate_pro_v9_clean')) {
+            savedData = JSON.parse(localStorage.getItem('cate_pro_v9_clean'));
+            await localforage.setItem('cate_pro_v9_clean', savedData);
+        }
+        
+        contracts = savedData || [];
+        
+        contracts.forEach(c => {
+            if (!c.assets) c.assets = [];
+            if (!c.inventory) c.inventory = []; 
+            
+            if (c.history && c.history.length > 0) {
+                const uniqueDates = new Set(c.history.map(h => h.date));
+                c.visitsDone = uniqueDates.size;
+            } else {
+                c.visitsDone = 0;
+            }
+
+            c.assets.forEach(a => {
+                if (a.type === 'compressor' && a.currentHours > 0 && !a.lastUpdated) {
+                    a.lastUpdated = getLocalDateString();
+                }
+            });
+        });
+
+        renderAll();
+    } catch (err) {
+        console.error('Error loading data:', err);
+        contracts = [];
+        renderAll();
+    }
     
     document.addEventListener('click', function(event) {
         const dropdown = document.getElementById('notif-dropdown');
@@ -236,8 +252,7 @@ function getStatus(c) {
         const diffTime = end - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays < 0) return { type: 'due', label: 'عقد منتهي', color: 'var(--danger)' };
-        if (diffDays <= 30) return { type: 'soon', label: 'تجديد العقد', color: 'var(--purple)' }; 
-    }
+        if (diffDays <= 30) return { type: 'soon', label: 'تجديد العقد', color: '#fef3c7', textColor: '#d97706' };    }
     
     let hasDueMachine = false;
     let hasSoonMachine = false;
@@ -578,22 +593,22 @@ function renderTable(data) {
         }
 
         tbody.innerHTML += `<tr>
-            <td style="text-align: right;">
+            <td data-label="الشركة / العميل" style="text-align: right;">
                 <div class="company-link" onclick="openCompanyAssets(${c.id})">${c.company}</div>
                 <div style="font-size:0.8rem;color:var(--text-light); margin-bottom:4px;"><i class="fa-solid fa-user"></i> ${c.client}</div>
-                <span class="badge ${badgeClass}" style="font-size:0.7rem; background:${status.color}; color:white;">${status.label}</span>
-            </td>
-            <td><div style="font-weight:bold;">${c.startDate}</div></td>
-            <td><div style="font-weight:bold;">${c.endDate}</div></td>
-            <td><div style="display:flex; flex-direction:column; align-items:center; gap:5px;"><span style="font-weight:bold; font-size:0.9rem;">${c.visitsDone} / ${c.totalVisits}</span><div class="progress-track" style="width:100%; margin:0;"><div class="progress-fill" style="width:${progress}%"></div></div></div></td>
-            <td>
+                <span class="badge ${badgeClass}" style="font-size:0.7rem; background:${status.color}; color:${status.textColor || 'white'}; font-weight:bold;">${status.label}</span>
+                </td>
+            <td data-label="تاريخ البداية"><div style="font-weight:bold;">${c.startDate}</div></td>
+            <td data-label="تاريخ النهاية"><div style="font-weight:bold;">${c.endDate}</div></td>
+            <td data-label="الإنجاز"><div style="display:flex; flex-direction:column; align-items:center; gap:5px;"><span style="font-weight:bold; font-size:0.9rem;">${c.visitsDone} / ${c.totalVisits}</span><div class="progress-track" style="width:100%; margin:0;"><div class="progress-fill" style="width:${progress}%"></div></div></div></td>
+            <td data-label="إجراءات">
                 <div class="actions-grid">
                     <button onclick="openWAModal(${c.id})" class="action-btn btn-icon-wa"><i class="fa-brands fa-whatsapp"></i></button>
                     ${holdBtn}
                     <button onclick="goToReports(${c.id})" class="action-btn btn-icon-rep"><i class="fa-solid fa-clipboard-list"></i></button>
                     <button onclick="editContract(${c.id})" class="action-btn btn-icon-edit"><i class="fa-solid fa-pen"></i></button>
                     ${pdfButtonDisplay}
-                    <button onclick="deleteContract(${c.id})" class="action-btn btn-icon-del" style="grid-column:span 2; width:100%;"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="deleteContract(${c.id})" class="action-btn btn-icon-del" style="flex-basis: 100%;"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </td>
         </tr>`;
@@ -933,7 +948,6 @@ window.resetMaintButtons = function() {
     });
 };
 
-// --- الدالة المسؤولة عن إظهار الـ Checkboxes التفاعلية ---
 window.fillMaintDetails = function(type, btnElement) {
     resetMaintButtons();
     
@@ -1392,7 +1406,12 @@ function readFileAsBase64(file) {
         const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
     });
 }
-function saveData() { try { localStorage.setItem('cate_pro_v9_clean', JSON.stringify(contracts)); } catch (e) { alert('الذاكرة ممتلئة! يرجى حذف بعض البيانات القديمة.'); } }
+function saveData() { 
+    localforage.setItem('cate_pro_v9_clean', contracts).catch(e => {
+        console.error('Error saving:', e);
+        alert('حدث خطأ غير متوقع أثناء حفظ البيانات.');
+    }); 
+}
 function globalSearch(q) { const lower = q.toLowerCase(); const filtered = contracts.filter(c => c.company.toLowerCase().includes(lower) || c.client.toLowerCase().includes(lower) || c.phone.includes(lower)); renderTable(filtered); renderReportsGrid(filtered); }
 function showFilePreview(input) { document.getElementById('files-preview').innerText = input.files.length > 0 ? `تم تحديد ${input.files.length} ملفات` : ''; }
 function formatPhone(p) { let n = p.replace(/\D/g, ''); if(n.startsWith('01')) n = '2' + n; return n; }
@@ -1461,20 +1480,126 @@ window.onclick = function(e) {
     if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
 }
 
+// --- Enhanced Actionable Notifications ---
 function updateNotifications() {
-        const notifList = document.getElementById('notif-list-body'); const badge = document.getElementById('notif-badge'); const bellBtn = document.getElementById('notif-btn'); notifList.innerHTML = ''; let count = 0;
+    const notifList = document.getElementById('notif-list-body'); 
+    const badge = document.getElementById('notif-badge'); 
+    const bellBtn = document.getElementById('notif-btn'); 
+    notifList.innerHTML = ''; 
+    let count = 0;
+    const today = new Date();
+
     contracts.forEach(c => {
-        const status = getStatus(c);
-        if (status.type !== 'active') {
-            count++;
-            let iconColor = status.color;
-            let icon = status.type === 'due' ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-clock"></i>';
-            let bgColor = status.type === 'due' ? '#fee2e2' : '#ffedd5';
-            notifList.innerHTML += `<div class="notif-item" onclick="switchTab('contracts')"><div class="notif-icon-box" style="background:${bgColor}; color:${iconColor}">${icon}</div><div class="notif-content"><h5>${c.company}</h5><p>${status.label}</p></div></div>`;
+        if(c.isHold) return;
+
+        // 1. تنبيهات العقود
+        if(c.endDate) {
+            const end = new Date(c.endDate);
+            const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+            
+            if(diffDays <= 30) {
+                count++;
+                let isDanger = diffDays <= 0;
+                let msg = isDanger ? '🚨 العقد منتهي! يرجى التجديد فوراً' : `⏳ ينتهي العقد خلال ${diffDays} يوم`;
+                let color = isDanger ? '#ef4444' : '#d97706';
+                let bg = isDanger ? '#fee2e2' : '#fef3c7';
+                let icon = isDanger ? 'fa-triangle-exclamation' : 'fa-clock';
+                let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
+                
+                notifList.innerHTML += `
+                    <div class="notif-item ${priorityClass}" onclick="goToContract(${c.id})">
+                        <div class="notif-icon-box" style="background:${bg}; color:${color}">
+                            <i class="fa-solid ${icon}"></i>
+                        </div>
+                        <div class="notif-content" style="flex:1;">
+                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                            <p style="margin:0; font-size:0.85rem; color:${color}; font-weight:700;">${msg}</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                    </div>`;
+            }
+        }
+
+        // 2. تنبيهات الماكينات
+        if(c.assets) {
+            c.assets.forEach((a, aIdx) => {
+                if(a.type === 'compressor' && a.maintenancePlan) {
+                    let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                    let nextIdx = a.nextMaintenanceIndex || 0;
+                    
+                    if (nextIdx < a.maintenancePlan.length) {
+                        const target = base + 2000;
+                        const remaining = target - a.currentHours;
+                        
+                        if(remaining <= 50) {
+                            count++;
+                            let isDanger = remaining <= 0;
+                            let msg = isDanger ? `⚠️ صيانة مستحقة فوراً (تجاوزت الموعد)` : `باقي ${remaining} ساعة على الصيانة`;
+                            let color = isDanger ? '#ef4444' : '#059669';
+                            let bg = isDanger ? '#fee2e2' : '#d1fae5';
+                            let icon = 'fa-screwdriver-wrench';
+                            let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
+
+                            notifList.innerHTML += `
+                                <div class="notif-item ${priorityClass}" onclick="goToMachineReport(${c.id}, ${aIdx})">
+                                    <div class="notif-icon-box" style="background:${bg}; color:${color}">
+                                        <i class="fa-solid ${icon}"></i>
+                                    </div>
+                                    <div class="notif-content" style="flex:1;">
+                                        <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                        <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ${msg}</p>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                                </div>`;
+                        }
+                    }
+                }
+            });
         }
     });
-    if (count === 0) { notifList.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">لا توجد تنبيهات جديدة 🎉</div>'; badge.style.display = 'none'; bellBtn.classList.remove('bell-active'); } else { badge.style.display = 'flex'; badge.innerText = count; bellBtn.classList.add('bell-active'); }
+
+    if (count === 0) { 
+        notifList.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#94a3b8;"><i class="fa-solid fa-circle-check" style="font-size:3rem; margin-bottom:15px; color:#10b981; opacity:0.5;"></i><br><span style="font-weight:bold; font-size:1.1rem;">كل الأمور تمام!</span><br>لا توجد تنبيهات عاجلة حالياً</div>'; 
+        badge.style.display = 'none'; 
+        bellBtn.classList.remove('bell-active'); 
+    } else { 
+        badge.style.display = 'flex'; 
+        badge.innerText = count; 
+        bellBtn.classList.add('bell-active'); 
+    }
 }
+
+// دالة فتح وقفل الـ Notifications
+window.toggleNotifications = function() {
+    const dropdown = document.getElementById('notif-dropdown');
+    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+};
+
+// 1. التوجيه للعقد تحديداً
+window.goToContract = function(contractId) {
+    document.getElementById('notif-dropdown').style.display = 'none';
+    switchTab('contracts');
+    
+    const c = contracts.find(x => x.id === contractId);
+    if(c) {
+        const searchBar = document.querySelectorAll('.mobile-search-bar input')[0];
+        if (searchBar) searchBar.value = c.company;
+        globalSearch(c.company);
+    }
+};
+
+// 2. التوجيه للماكينة تحديداً داخل تقرير العميل
+window.goToMachineReport = function(contractId, assetIndex) {
+    document.getElementById('notif-dropdown').style.display = 'none';
+    switchTab('reports');
+    
+    openCRM(contractId);
+    
+    setTimeout(() => {
+        selectReportAsset(assetIndex);
+        document.getElementById('report-action-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+};
 
 // --- 16. REPORTS & ASSET FILTER LOGIC ---
 function renderReportsGrid(data) {
@@ -1532,7 +1657,6 @@ function selectReportAsset(index) {
     const vacuumOptions = document.getElementById('vacuum-maint-options'); 
     const options8000Div = document.getElementById('maint-8000-sub-options');
     
-    // تفريغ مربع المهام التفاعلية لو اخترت ماكينة تانية
     const dynamicContainer = document.getElementById('dynamic-tasks-container');
     if(dynamicContainer) {
         dynamicContainer.classList.add('hidden');
@@ -1557,7 +1681,6 @@ function selectReportAsset(index) {
         }
         document.getElementById('selected-asset-name').innerText = contract.assets[index].name;
         
-        // التعديل: إظهار خيارات الـ Vacuum Pump لما نختارها
         if (asset.type === 'compressor') {
             compOptions.classList.remove('hidden');
             dryerOptions.classList.add('hidden');
@@ -1693,7 +1816,6 @@ document.getElementById('visitForm').addEventListener('submit', async (e) => {
         
         if (window.resetMaintButtons) resetMaintButtons();
         
-        // إخفاء الـ Checkboxes التفاعلية بعد الحفظ
         document.getElementById('dynamic-tasks-container').classList.add('hidden');
         document.getElementById('dynamic-tasks-container').innerHTML = '';
         currentActiveTaskType = null;
@@ -1947,3 +2069,23 @@ window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
         showToast("تم تأكيد الإتمام وتحديث المواعيد القادمة!");
     }
 };
+
+
+// --- Mobile Sidebar Toggle ---
+window.toggleSidebar = function() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    
+    if (sidebar && overlay) {
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    }
+};
+
+document.querySelectorAll('.sidebar li').forEach(li => {
+    li.addEventListener('click', () => {
+        if (window.innerWidth <= 768) {
+            toggleSidebar();
+        }
+    });
+});
