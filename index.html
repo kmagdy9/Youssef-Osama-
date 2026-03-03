@@ -10,6 +10,8 @@
 </head>
 <body>
 
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <aside class="sidebar">
         <div class="logo" onclick="switchTab('dashboard')" title="الذهاب للوحة القيادة">
             <img src="Only CATE.png" alt="CATE System PRO">
@@ -24,14 +26,20 @@
         <div class="user-profile-box">
             <div style="width:35px; height:35px; background:var(--primary); color:white; border-radius:50%; display:grid; place-items:center; font-size:0.9rem;">👤</div>
             <div>
-                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">Youssef Osama</div>
-                <div style="font-size:0.75rem; color:var(--text-light);">Maintenance Engineer</div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">Khaled</div>
+                <div style="font-size:0.75rem; color:var(--text-light);">IT & Digital Operation</div>
             </div>
         </div>
     </aside>
 
     <main class="main-content">
         <header>
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            
+            <img src="Only CATE.png" class="mobile-logo" onclick="switchTab('dashboard')" alt="CATE">
+            
             <div class="search-wrapper" id="main-search-bar">
                 <input type="text" placeholder="بحث شامل (شركة، عميل)..." onkeyup="globalSearch(this.value)">
                 <i class="fa-solid fa-search"></i>
@@ -147,6 +155,12 @@
                         <button class="btn btn-primary" onclick="openModal()"><i class="fa-solid fa-plus"></i> عقد جديد</button>
                     </div>
                 </div>
+
+                <div class="mobile-search-bar">
+                    <input type="text" placeholder="بحث عن شركة أو عميل..." onkeyup="globalSearch(this.value)">
+                    <i class="fa-solid fa-search"></i>
+                </div>
+
                 <div class="card-container">
                     <div class="table-responsive">
                         <table id="main-table">
@@ -194,6 +208,12 @@
                     <div class="section-header">
                         <h2 style="margin:0;">تقارير العملاء</h2>
                     </div>
+
+                    <div class="mobile-search-bar">
+                        <input type="text" placeholder="بحث عن تقرير شركة..." onkeyup="globalSearch(this.value)">
+                        <i class="fa-solid fa-search"></i>
+                    </div>
+
                     <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:20px;" id="reports-grid"></div>
                     <div id="no-reports-msg" style="text-align:center; padding:40px; color:var(--text-light);">لا توجد عقود لعرض التقارير.</div>
                 </div>
@@ -563,7 +583,7 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group" style="margin:0;"><label class="form-label">سنة التصنيع</label><input type="number" class="form-control" id="compYear" placeholder="2020" required></div>
-                            <div class="form-group" style="margin:0;"><label class="form-label">تاريخ بدء التشغيل</label><input type="date" class="form-control" id="compStartDate" required></div>
+                            <div class="form-group" style="margin:0;"><label class="form-label">تاريخ بدء الضاعط مع الشركة</label><input type="date" class="form-control" id="compStartDate" required></div>
                         </div>
                         
                         <div class="form-row" id="hoursDataContainer" style="margin-top:15px; display:none;">
@@ -643,6 +663,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>
