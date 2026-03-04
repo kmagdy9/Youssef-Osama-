@@ -237,7 +237,7 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .asset-btn-del { background: #fee2e2; color: #ef4444; }
 .asset-btn-del:hover { background: #ef4444; color: white; }
 
-/* Maintenance Plan Builder Styles */
+/* Maintenance Plan Buttons */
 .plan-builder-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
 .plan-btn { flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: white; cursor: pointer; font-weight: bold; transition: 0.2s; min-width: 60px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .plan-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
@@ -488,7 +488,7 @@ table {
 @media (max-width: 768px) {
     /* Header & Navigation */
     header { position: relative; padding: 10px 15px; justify-content: space-between !important; align-items: center; }
-    .mobile-logo { display: block; height: 38px; object-fit: contain; cursor: pointer; position: absolute; left: 50%; transform: translateX(-50%); z-index: 10; }
+    .mobile-logo { display: block; height: 55px; object-fit: contain; cursor: pointer; position: absolute; left: 50%; transform: translateX(-50%); z-index: 10; }
     .header-actions { margin-right: 0; } 
     .mobile-menu-btn { display: block; }
     .search-wrapper { display: none; } 
