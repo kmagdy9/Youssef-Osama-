@@ -67,10 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('main-search-bar').style.visibility = 'hidden';
 
     try {
-        // تحميل البيانات من الذاكرة اللامحدودة (IndexedDB)
         let savedData = await localforage.getItem('cate_pro_v9_clean');
         
-        // لو مفيش بيانات، هندور في التخزين القديم عشان بياناتك متضيعش وننقلها
         if (!savedData && localStorage.getItem('cate_pro_v9_clean')) {
             savedData = JSON.parse(localStorage.getItem('cate_pro_v9_clean'));
             await localforage.setItem('cate_pro_v9_clean', savedData);
@@ -351,11 +349,21 @@ function renderUrgentAlerts() {
                     if (nextIdx < a.maintenancePlan.length) {
                         const target = base + 2000;
                         const remaining = target - a.currentHours;
+
+                        // ---- الكود الجديد الخاص بمضاعفات 16000 و 24000 ----
+                        let maintName = "صيانة دورية";
+                        if (target > 0 && target % 24000 === 0) {
+                            maintName = `صيانة الـ ${target} ساعة (عمرة كاملة)`;
+                        } else if (target > 0 && target % 16000 === 0) {
+                            maintName = `صيانة الـ ${target} ساعة`;
+                        }
+                        // -----------------------------------------------------
+
                         if(remaining <= 0) {
-                            addAlertItem(container, c.company, `صيانة مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
+                            addAlertItem(container, c.company, `${maintName} مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
                             alertCount++;
                         } else if (remaining <= 50) { 
-                            addAlertItem(container, c.company, `اقتراب صيانة: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
+                            addAlertItem(container, c.company, `اقتراب ${maintName}: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
                             alertCount++;
                         }
                     }
@@ -756,7 +764,7 @@ function renderInventoryTables() {
     }
 
     contract.assets.forEach((asset, assetIdx) => {
-        const assetParts = (contract.inventory || []).filter(p => p.model === asset.name);
+        const assetParts = (contract.inventory || []).filter(p => p.model === asset.name && (!p.serial || p.serial === asset.serial));
         
         let rows = '';
         assetParts.forEach((p, i) => {
@@ -841,6 +849,7 @@ window.addPartToAsset = function(e, assetIdx) {
     const newItem = {
         id: Date.now().toString(),
         model: asset.name,
+        serial: asset.serial, 
         name: document.getElementById(`invName_${assetIdx}`).value,
         partNo: document.getElementById(`invPartNo_${assetIdx}`).value,
         qty: parseInt(document.getElementById(`invQty_${assetIdx}`).value),
@@ -865,19 +874,19 @@ function deleteInvItem(itemId) {
     }
 }
 
-function renderVisitInventoryDeduction(contractId, assetName = null) {
+function renderVisitInventoryDeduction(contractId, asset = null) {
     const container = document.getElementById('visit-inventory-list');
     const box = document.getElementById('visit-inventory-deduction');
     const nameLabel = document.getElementById('inv-machine-name');
     container.innerHTML = '';
     
-    if (!assetName) {
+    if (!asset) {
         box.classList.add('hidden');
         return;
     }
 
     const contract = contracts.find(c => c.id === contractId);
-    const availableParts = contract.inventory ? contract.inventory.filter(p => p.qty > 0 && p.model === assetName) : [];
+    const availableParts = contract.inventory ? contract.inventory.filter(p => p.qty > 0 && p.model === asset.name && (!p.serial || p.serial === asset.serial)) : [];
 
     if(availableParts.length === 0) {
         box.classList.add('hidden');
@@ -885,7 +894,7 @@ function renderVisitInventoryDeduction(contractId, assetName = null) {
     }
 
     box.classList.remove('hidden');
-    nameLabel.innerText = `(${assetName})`;
+    nameLabel.innerText = `(${asset.name})`;
     
     let gridHtml = '<div class="visit-inv-grid">';
     
@@ -1182,6 +1191,7 @@ function deleteAsset(index) {
     }
 }
 
+// --- FIX: الاستنساخ الكامل للخطة لمنع التداخل ---
 function editAsset(index) {
     const cIdx = contracts.findIndex(c => c.id === currentAssetContractId);
     if (cIdx === -1) return;
@@ -1236,7 +1246,9 @@ function editAsset(index) {
         }
         document.getElementById('compDailyHours').value = asset.dailyHours;
         document.getElementById('compDaysOff').value = asset.daysOff;
-        currentMaintenancePlan = asset.maintenancePlan || [];
+        
+        // إصلاح: أخذ نسخة طبق الأصل (Clone) من الخطة عشان التعديلات تتحفظ بشكل مستقل
+        currentMaintenancePlan = asset.maintenancePlan ? [...asset.maintenancePlan] : [];
         updatePlanPreview();
     }
 }
@@ -1306,6 +1318,7 @@ document.getElementById('vacuumForm').addEventListener('submit', (e) => {
     }
 });
 
+// --- FIX: حفظ الخطة بشكل صحيح ودقيق داخل الماكينة ---
 document.getElementById('usedCompressorForm').addEventListener('submit', (e) => {
     e.preventDefault();
     if (!currentAssetContractId) return;
@@ -1315,46 +1328,62 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
     const daily = parseFloat(document.getElementById('compDailyHours').value);
     const off = parseFloat(document.getElementById('compDaysOff').value);
     const currentHrsVal = parseInt(document.getElementById('compCurrentHours').value) || 0;
-    
     const lastMaintVal = currentCompressorMode === 'new' ? 0 : (parseInt(document.getElementById('compLastMaintHours').value) || 0);
 
     const idx = contracts.findIndex(c => c.id === currentAssetContractId);
-    let lastUpdatedDate = getLocalDateString();
-    if (idx !== -1 && editingAssetIndex !== null) {
-        const oldAsset = contracts[idx].assets[editingAssetIndex];
-        if (oldAsset && oldAsset.currentHours === currentHrsVal && oldAsset.lastUpdated) {
-            lastUpdatedDate = oldAsset.lastUpdated;
-        }
-    }
-
-    const compData = {
-        type: 'compressor', 
-        subType: subType,
-        name: document.getElementById('compName').value, 
-        serial: document.getElementById('compSerial').value, 
-        year: document.getElementById('compYear').value,
-        startDate: document.getElementById('compStartDate').value,
-        currentHours: currentHrsVal,
-        planBaseHours: lastMaintVal, 
-        dailyHours: daily, 
-        daysOff: off,
-        maintenancePlan: currentMaintenancePlan, 
-        nextMaintenanceIndex: (editingAssetIndex !== null && contracts[idx].assets[editingAssetIndex].nextMaintenanceIndex) || 0,
-        completedStepsHours: (editingAssetIndex !== null && contracts[idx].assets[editingAssetIndex].completedStepsHours) || [],
-        lastUpdated: lastUpdatedDate 
-    };
-
+    
     if (idx !== -1) {
-        if (!contracts[idx].assets) contracts[idx].assets = [];
+        let lastUpdatedDate = getLocalDateString();
+        let nextMaintIdx = 0;
+        let completedSteps = [];
+
+        // لو ده تعديل، بنحتفظ بالتواريخ والخطوات اللي اتعملت قبل كده
         if (editingAssetIndex !== null) {
-            contracts[idx].assets[editingAssetIndex] = compData;
-            showToast("تم تعديل بيانات الكومبريسور");
+            const oldAsset = contracts[idx].assets[editingAssetIndex];
+            if (oldAsset) {
+                if (oldAsset.currentHours === currentHrsVal && oldAsset.lastUpdated) {
+                    lastUpdatedDate = oldAsset.lastUpdated;
+                }
+                nextMaintIdx = oldAsset.nextMaintenanceIndex || 0;
+                completedSteps = oldAsset.completedStepsHours || [];
+            }
+        }
+
+        const compData = {
+            type: 'compressor', 
+            subType: subType,
+            name: document.getElementById('compName').value, 
+            serial: document.getElementById('compSerial').value, 
+            year: document.getElementById('compYear').value,
+            startDate: document.getElementById('compStartDate').value,
+            currentHours: currentHrsVal,
+            planBaseHours: lastMaintVal, 
+            dailyHours: daily, 
+            daysOff: off,
+            // إصلاح: حقن الخطة الجديدة كـ Array جديد تماماً
+            maintenancePlan: [...currentMaintenancePlan], 
+            nextMaintenanceIndex: nextMaintIdx,
+            completedStepsHours: completedSteps,
+            lastUpdated: lastUpdatedDate 
+        };
+
+        if (!contracts[idx].assets) contracts[idx].assets = [];
+        
+        if (editingAssetIndex !== null) {
+            // دمج الداتا الجديدة مع القديمة بشكل صحيح عشان ولا حاجة تضيع
+            contracts[idx].assets[editingAssetIndex] = {
+                ...contracts[idx].assets[editingAssetIndex],
+                ...compData
+            };
+            showToast("تم تعديل بيانات الكومبريسور وتحديث الخطة بنجاح!");
         } else {
             contracts[idx].assets.push(compData);
             showToast("تم إضافة الكومبريسور");
         }
+        
         contracts[idx].dailyHours = daily;
         contracts[idx].daysOff = off;
+        
         saveData();
         renderAssetsGrid(contracts[idx].assets);
         closeAddMachineModal();
@@ -1470,16 +1499,6 @@ function sendWAMessage(type) {
     closeWAModal();
 }
 
-window.onclick = function(e) { 
-    if (e.target == modal) closeModal(); 
-    if (e.target == document.getElementById('waModal')) closeWAModal(); 
-    if (e.target == document.getElementById('editVisitModal')) closeEditModal(); 
-    if (e.target == document.getElementById('addMachineModal')) closeAddMachineModal(); 
-    if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
-    if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
-    if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
-}
-
 // --- Enhanced Actionable Notifications ---
 function updateNotifications() {
     const notifList = document.getElementById('notif-list-body'); 
@@ -1534,14 +1553,25 @@ function updateNotifications() {
                         if(remaining <= 50) {
                             count++;
                             let isDanger = remaining <= 0;
-                            let msg = isDanger ? `⚠️ صيانة مستحقة فوراً (تجاوزت الموعد)` : `باقي ${remaining} ساعة على الصيانة`;
+
+                            // ---- الكود الجديد الخاص بمضاعفات 16000 و 24000 ----
+                            let maintName = "الصيانة الدورية";
+                            if (target > 0 && target % 24000 === 0) {
+                                maintName = `صيانة الـ ${target} ساعة (عمرة كاملة)`;
+                            } else if (target > 0 && target % 16000 === 0) {
+                                maintName = `صيانة الـ ${target} ساعة`;
+                            }
+
+                            let msg = isDanger ? `⚠️ ${maintName} مستحقة فوراً (تجاوزت الموعد)` : `باقي ${remaining} ساعة على ${maintName}`;
+                            // -----------------------------------------------------
+
                             let color = isDanger ? '#ef4444' : '#059669';
                             let bg = isDanger ? '#fee2e2' : '#d1fae5';
                             let icon = 'fa-screwdriver-wrench';
                             let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
 
                             notifList.innerHTML += `
-                                <div class="notif-item ${priorityClass}" onclick="goToMachineReport(${c.id}, ${aIdx})">
+                                <div class="notif-item ${priorityClass}" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
                                     <div class="notif-icon-box" style="background:${bg}; color:${color}">
                                         <i class="fa-solid ${icon}"></i>
                                     </div>
@@ -1568,7 +1598,6 @@ function updateNotifications() {
         bellBtn.classList.add('bell-active'); 
     }
 }
-
 // دالة فتح وقفل الـ Notifications
 window.toggleNotifications = function() {
     const dropdown = document.getElementById('notif-dropdown');
@@ -1588,7 +1617,36 @@ window.goToContract = function(contractId) {
     }
 };
 
-// 2. التوجيه للماكينة تحديداً داخل تقرير العميل
+// 2. التوجيه من الـ Notification إلى شاشة الماكينة مباشرة
+window.goToMachinePlanFromNotif = function(contractId, assetIndex) {
+    document.getElementById('notif-dropdown').style.display = 'none';
+    
+    // يفتح شاشة الأصول الخاصة بالشركة (Company Assets) لتكون خلفية للمودال
+    openCompanyAssets(contractId);
+    
+    // يفتح شاشة تفاصيل الماكينة (اللي فيها خطة الصيانة)
+    setTimeout(() => {
+        openMachineDetails(assetIndex);
+    }, 100);
+};
+
+// 3. التوجيه إلى شاشة التقرير (CRM) مع فتح شاشة التحميل
+window.triggerReportRedirect = function(cId, aIdx) {
+    // إغلاق أي نافذة مفتوحة
+    closeMachineDetailsModal();
+    
+    // إظهار شاشة التحميل (Loading Screen)
+    const loader = document.getElementById('redirectLoader');
+    if (loader) loader.style.display = 'flex';
+
+    // انتظار ثانيتين ونص ثم التوجيه للتقارير
+    setTimeout(() => {
+        if (loader) loader.style.display = 'none';
+        goToMachineReport(cId, aIdx);
+    }, 2500); 
+};
+
+// 4. الدالة الأصلية الخاصة بفتح صفحة تقرير العميل والماكينة المحددة
 window.goToMachineReport = function(contractId, assetIndex) {
     document.getElementById('notif-dropdown').style.display = 'none';
     switchTab('reports');
@@ -1669,11 +1727,11 @@ function selectReportAsset(index) {
     const extraCbs = document.getElementsByName('extraParts');
     extraCbs.forEach(cb => cb.checked = false);
 
-    let selectedAssetName = null; 
+    let selectedAsset = null; 
 
     if (index !== null) {
         const asset = contract.assets[index];
-        selectedAssetName = asset.name; 
+        selectedAsset = asset; 
         const activeCard = document.getElementById(`asset-card-${index}`);
         if(activeCard) {
             activeCard.style.borderColor = 'var(--primary)';
@@ -1705,7 +1763,7 @@ function selectReportAsset(index) {
         vacuumOptions.classList.add('hidden');
     }
     
-    renderVisitInventoryDeduction(cId, selectedAssetName);
+    renderVisitInventoryDeduction(cId, selectedAsset);
 
     document.getElementById('report-action-section').classList.remove('hidden');
     document.getElementById('reportAssetIndex').value = index !== null ? index : '';
@@ -1822,8 +1880,8 @@ document.getElementById('visitForm').addEventListener('submit', async (e) => {
 
         renderTimeline(contracts[idx].history, id, assetIndex);
         
-        const selectedAssetName = contracts[idx].assets[assetIndex] ? contracts[idx].assets[assetIndex].name : null;
-        renderVisitInventoryDeduction(id, selectedAssetName); 
+        const selectedAsset = contracts[idx].assets[assetIndex] ? contracts[idx].assets[assetIndex] : null;
+        renderVisitInventoryDeduction(id, selectedAsset); 
         
         showToast('تم تسجيل الزيارة للماكينة بنجاح');
     }
@@ -2067,9 +2125,21 @@ window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
         renderAll(); 
         openMachineDetails(aIdx); 
         showToast("تم تأكيد الإتمام وتحديث المواعيد القادمة!");
+
+        // التحقق: هل هذه آخر صيانة في الخطة؟
+        if (asset.nextMaintenanceIndex >= asset.maintenancePlan.length) {
+            setTimeout(() => {
+                closeMachineDetailsModal(); // قفل شاشة الماكينة
+                openRenewPlanModal(cId, aIdx); // فتح شاشة تجديد الخطة
+            }, 600);
+        } else {
+            // التوجيه المباشر لكتابة التقرير لو الخطة لسه مخلصتش
+            setTimeout(() => {
+                triggerReportRedirect(cId, aIdx);
+            }, 600);
+        }
     }
 };
-
 
 // --- Mobile Sidebar Toggle ---
 window.toggleSidebar = function() {
@@ -2089,3 +2159,94 @@ document.querySelectorAll('.sidebar li').forEach(li => {
         }
     });
 });
+
+// --- RENEW MAINTENANCE PLAN LOGIC ---
+let renewPlanArray = [];
+let renewContractId = null;
+let renewAssetIndex = null;
+
+window.openRenewPlanModal = function(cId, aIdx) {
+    renewContractId = cId;
+    renewAssetIndex = aIdx;
+    renewPlanArray = [];
+    updateRenewPlanPreview();
+    document.getElementById('renewPlanModal').style.display = 'flex';
+};
+
+window.closeRenewPlanModal = function() {
+    document.getElementById('renewPlanModal').style.display = 'none';
+    renewContractId = null;
+    renewAssetIndex = null;
+};
+
+window.addRenewPlanStep = function(type) {
+    renewPlanArray.push(type);
+    updateRenewPlanPreview();
+};
+
+window.removeRenewPlanStep = function(index) {
+    renewPlanArray.splice(index, 1);
+    updateRenewPlanPreview();
+};
+
+window.clearRenewPlan = function() {
+    renewPlanArray = [];
+    updateRenewPlanPreview();
+};
+
+window.setDefaultRenewPlan = function() {
+    renewPlanArray = ['A', 'B', 'A', 'C'];
+    updateRenewPlanPreview();
+};
+
+window.updateRenewPlanPreview = function() {
+    const container = document.getElementById('renewPlanTimelineContainer');
+    container.innerHTML = '';
+    if (renewPlanArray.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:#aaa; font-size:0.85rem; padding-top:20px;">اضغط على الأزرار أعلاه لترتيب الصيانات القادمة...</div>';
+        return;
+    }
+
+    renewPlanArray.forEach((stepChar, index) => {
+        const color = getMaintenanceColor(stepChar);
+        const label = getMaintenanceLabel(stepChar);
+        const html = `<div class="plan-step" style="border-right: 4px solid ${color}"><div class="step-index" style="background:${color}">${index + 1}</div><div class="step-info" style="margin-right:10px;"><div class="step-type" style="color:${color}">${label}</div></div><div class="step-remove" onclick="removeRenewPlanStep(${index})"><i class="fa-solid fa-times"></i></div></div>`;
+        container.insertAdjacentHTML('beforeend', html);
+    });
+};
+
+window.saveRenewedPlan = function() {
+    if (renewPlanArray.length === 0) {
+        alert("يرجى إضافة خطوة صيانة واحدة على الأقل للخطة الجديدة.");
+        return;
+    }
+
+    const cIdx = contracts.findIndex(c => c.id === renewContractId);
+    if (cIdx !== -1) {
+        const asset = contracts[cIdx].assets[renewAssetIndex];
+        
+        // دمج الخطة الجديدة مع القديمة للحفاظ على السجل القديم والتكملة عليه
+        asset.maintenancePlan = asset.maintenancePlan.concat(renewPlanArray);
+        
+        saveData();
+        renderAll();
+        showToast("تم إضافة الخطة الجديدة بنجاح للمستقبل!");
+        closeRenewPlanModal();
+        
+        // التوجيه لكتابة التقرير بعد حفظ الخطة الجديدة
+        setTimeout(() => {
+            triggerReportRedirect(renewContractId, renewAssetIndex);
+        }, 300);
+    }
+};
+
+window.onclick = function(e) { 
+    if (e.target == modal) closeModal(); 
+    if (e.target == document.getElementById('waModal')) closeWAModal(); 
+    if (e.target == document.getElementById('editVisitModal')) closeEditModal(); 
+    if (e.target == document.getElementById('addMachineModal')) closeAddMachineModal(); 
+    if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
+    if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
+    if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
+    if (e.target == document.getElementById('renewPlanModal')) closeRenewPlanModal();
+}
