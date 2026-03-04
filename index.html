@@ -660,12 +660,46 @@
         </div>
     </div>
 
+    <div id="renewPlanModal" class="modal" style="z-index: 9999;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin:0; color:var(--primary);"><i class="fa-solid fa-calendar-plus"></i> خطة الصيانات القادمة</h3>
+                <button onclick="closeRenewPlanModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--danger);"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p style="font-size: 0.95rem; color: var(--text-light); margin-bottom: 15px;">تم الانتهاء من جميع الصيانات في الخطة الحالية. يرجى تحديد الخطة الجديدة لاستكمال المتابعة:</p>
+            
+            <div class="form-group">
+                <label class="form-label"><i class="fa-solid fa-layer-group"></i> بناء خطة جديدة (اختر بالترتيب)</label>
+                <div class="plan-builder-btns">
+                    <button type="button" class="plan-btn plan-btn-A" onclick="addRenewPlanStep('A')">A<span>(2000 hr)</span></button>
+                    <button type="button" class="plan-btn plan-btn-B" onclick="addRenewPlanStep('B')">B<span>(4000 hr)</span></button>
+                    <button type="button" class="plan-btn plan-btn-C" onclick="addRenewPlanStep('C')">C<span>(8000 hr)</span></button>
+                    <button type="button" class="plan-btn plan-btn-D" onclick="addRenewPlanStep('D')">D<span>(16000 hr)</span></button>
+                    <button type="button" class="plan-btn plan-btn-E" onclick="addRenewPlanStep('E')">E<span>(24000 hr)</span></button>
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button type="button" class="btn" style="background:#e2e8f0; color:#475569; font-size:0.8rem; padding:5px 10px;" onclick="clearRenewPlan()"><i class="fa-solid fa-rotate-left"></i> مسح</button>
+                    <button type="button" class="btn" style="background:#e0f2fe; color:#0284c7; font-size:0.8rem; padding:5px 10px;" onclick="setDefaultRenewPlan()"><i class="fa-solid fa-wand-magic-sparkles"></i> خطة افتراضية (A, B, A, C)</button>
+                </div>
+                <div class="plan-timeline" id="renewPlanTimelineContainer"></div>
+            </div>
+
+            <div style="text-align: left; margin-top: 25px;">
+                <button type="button" class="btn btn-primary" onclick="saveRenewedPlan()"><i class="fa-solid fa-check"></i> حفظ الخطة الجديدة</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="redirectLoader" class="modal" style="display: none; z-index: 10000; flex-direction: column; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.95); text-align: center;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 4rem; color: var(--primary); margin-bottom: 20px;"></i>
+        <h3 style="color: var(--primary); margin: 0 0 10px 0; font-size: 1.5rem;">عمل ممتاز! جاري تهيئة التقرير...</h3>
+        <p style="color: var(--text-light); font-weight: bold; font-size: 1.1rem; margin: 0;">سيتم توجيهك الآن لكتابة تقرير الزيارة التي تمت</p>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
-    
     <script src="script.js"></script>
 </body>
 </html>
