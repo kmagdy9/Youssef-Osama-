@@ -26,8 +26,8 @@
         <div class="user-profile-box">
             <div style="width:35px; height:35px; background:var(--primary); color:white; border-radius:50%; display:grid; place-items:center; font-size:0.9rem;">👤</div>
             <div>
-                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">Khaled</div>
-                <div style="font-size:0.75rem; color:var(--text-light);">IT & Digital Operation</div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">Yousef Osama</div>
+                <div style="font-size:0.75rem; color:var(--text-light);">Maintenance Engineer</div>
             </div>
         </div>
     </aside>
@@ -409,21 +409,12 @@
                 <span class="close" onclick="closeWAModal()">&times;</span>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:15px; color:#64748b; font-size:0.9rem;">اختر نوع الرسالة المراد إرسالها للعميل:</p>
-                <div class="wa-grid-container">
-                    <button class="wa-btn full-width" onclick="sendWAMessage('schedule')">
-                        <i class="fa-solid fa-calendar-days"></i><span>جدول الصيانة المتوقع</span>
-                    </button>
-                    <button class="wa-btn" onclick="sendWAMessage('2000')"><i class="fa-solid fa-clock"></i><span>تذكير 2000 ساعة</span></button>
-                    <button class="wa-btn" onclick="sendWAMessage('4000')"><i class="fa-solid fa-filter"></i><span>تذكير 4000 ساعة</span></button>
-                    <button class="wa-btn" onclick="sendWAMessage('8000')"><i class="fa-solid fa-screwdriver-wrench"></i><span>تذكير 8000 ساعة</span></button>
-                    <button class="wa-btn" onclick="sendWAMessage('16000')"><i class="fa-solid fa-gears"></i><span>تذكير 16000 ساعة</span></button>
-                    <button class="wa-btn alert-btn" onclick="sendWAMessage('24000')"><i class="fa-solid fa-rotate"></i><span>تذكير عمرة 24000</span></button>
+                <p style="margin-bottom:15px; color:#64748b; font-size:0.9rem;">اختر البيانات المراد إرسالها للعميل:</p>
+                <div class="wa-grid-container" id="wa-dynamic-content">
                 </div>
             </div>
         </div>
     </div>
-
     <div id="contractModal" class="modal">
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
@@ -575,7 +566,19 @@
             <div id="used-compressor-form-section" class="hidden">
                 <button class="btn" onclick="backToCompChoice()" style="padding:5px 10px; font-size:0.8rem; margin-bottom:15px; background:#f1f5f9;"><i class="fa-solid fa-arrow-right"></i> رجوع</button>
                 <form id="usedCompressorForm">
-                    <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px; border: 1px solid #e2e8f0;">
+                        <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--primary);">حالة سجل الصيانات (History)</h4>
+                        <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; font-size: 0.85rem;">
+                                <input type="radio" name="usedHistoryMode" value="known" checked onchange="toggleUsedHistoryMode()"> عميل له سجل (يعرف تاريخ الصيانات)
+                            </label>
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; font-size: 0.85rem;">
+                                <input type="radio" name="usedHistoryMode" value="unknown" onchange="toggleUsedHistoryMode()"> عميل جديد (لا يعرف تاريخ الصيانات)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="background:#fff; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #e2e8f0;">
                         <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--primary);">بيانات الماكينة</h4>
                         <div class="form-row">
                             <div class="form-group" style="margin-bottom:10px;"><label class="form-label">اسم الـ Compressor</label><input type="text" class="form-control" id="compName" required></div>
@@ -583,17 +586,26 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group" style="margin:0;"><label class="form-label">سنة التصنيع</label><input type="number" class="form-control" id="compYear" placeholder="2020" required></div>
-                            <div class="form-group" style="margin:0;"><label class="form-label">تاريخ بدء الضاعط مع الشركة</label><input type="date" class="form-control" id="compStartDate" required></div>
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label" style="color:var(--warning);">ساعات التشغيل الحالية (قراءة الشاشة)</label>
+                                <input type="number" class="form-control" id="compCurrentHours" placeholder="مثال: 8500" onkeyup="updatePlanPreview()" required>
+                            </div>
                         </div>
                         
-                        <div class="form-row" id="hoursDataContainer" style="margin-top:15px; display:none;">
-                            <div class="form-group" style="margin:0;"><label class="form-label" style="color:var(--primary);">ساعات آخر صيانة تمت</label><input type="number" class="form-control" id="compLastMaintHours" placeholder="مثال: 2000" onkeyup="updatePlanPreview()"></div>
-                            <div class="form-group" style="margin:0;"><label class="form-label" style="color:var(--warning);">ساعات التشغيل الحالية</label><input type="number" class="form-control" id="compCurrentHours" placeholder="مثال: 2500" onkeyup="updatePlanPreview()"></div>
+                        <div class="form-row" id="known-history-fields" style="margin-top:15px; padding-top:15px; border-top:1px dashed #cbd5e1;">
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label" style="color:var(--primary);">ساعات آخر صيانة تمت</label>
+                                <input type="number" class="form-control" id="compLastMaintHours" placeholder="مثال: 8000" onkeyup="updatePlanPreview()">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label" style="color:var(--primary);">تاريخ آخر صيانة تمت</label>
+                                <input type="date" class="form-control" id="compLastMaintDate" onchange="updatePlanPreview()">
+                            </div>
                         </div>
                     </div>
 
                     <div style="background:#f0f9ff; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #bae6fd;">
-                        <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:#0369a1;">بيانات التشغيل (لحساب المواعيد)</h4>
+                        <h4 style="margin:0 0 10px 0; font-size:0.9rem; color:#0369a1;">بيانات التشغيل (لحساب المواعيد القادمة)</h4>
                         <div class="form-row">
                             <div class="form-group" style="margin:0;"><label class="form-label">ساعات تشغيل / يوم</label><input type="number" class="form-control" id="compDailyHours" placeholder="8" onkeyup="updatePlanPreview()" required></div>
                             <div class="form-group" style="margin:0;"><label class="form-label">أيام إجازة / شهر</label><input type="number" class="form-control" id="compDaysOff" placeholder="4" onkeyup="updatePlanPreview()" required></div>
@@ -701,5 +713,31 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <script src="script.js"></script>
+
+    <div id="maintenanceConfirmModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-clipboard-check"></i> تأكيد إتمام الصيانة</h3>
+                <span class="close" onclick="closeMaintenanceConfirmModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="maintConfirmWarning" style="background: #fffbeb; color: #d97706; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #fcd34d; display: none; line-height: 1.5;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.2rem; margin-bottom: 5px;"></i><br>
+                    <strong>تنبيه:</strong> أنت تقوم بإتمام صيانة متقدمة عن موعدها. سيتم تسجيل هذه الصيانة كمكتملة الآن، مع الاحتفاظ بالصيانات التي تم تخطيها وترحيلها لتكون هي المستحقة في المستقبل.
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label class="form-label" style="font-weight: bold; color: var(--primary);">أدخل عدد ساعات الماكينة الفعلي وقت إتمام هذه الصيانة:</label>
+                    <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 0; margin-bottom: 10px;">(ساعات التشغيل الحالية المسجلة: <span id="maintConfirmCurrentHoursText" style="font-weight: bold; color: var(--text-main);">0</span> ساعة)</p>
+                    <input type="number" id="maintConfirmHoursInput" class="form-control" placeholder="أدخل عدد الساعات..." required>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn btn-primary" onclick="executeMaintenanceDone()" style="flex: 1;"><i class="fa-solid fa-check"></i> تأكيد الإتمام</button>
+                    <button type="button" class="btn" onclick="closeMaintenanceConfirmModal()" style="flex: 1; background: #e2e8f0; color: #475569;"><i class="fa-solid fa-xmark"></i> إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
