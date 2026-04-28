@@ -1602,7 +1602,7 @@ function globalSearch(q) { const lower = q.toLowerCase(); const filtered = contr
 function showFilePreview(input) { document.getElementById('files-preview').innerText = input.files.length > 0 ? `تم تحديد ${input.files.length} ملفات` : ''; }
 function formatPhone(p) { let n = p.replace(/\D/g, ''); if(n.startsWith('01')) n = '2' + n; return n; }
 
-// --- 15. ADDITIONAL HANDLERS (تعديل الواتساب هنا) ---
+// --- 15. ADDITIONAL HANDLERS ---
 function openModal() { form.reset(); document.getElementById('editId').value = ''; document.getElementById('contract-file-preview').innerText = ''; modal.style.display = 'flex'; }
 function closeModal() { modal.style.display = 'none'; }
 function editContract(id) { 
@@ -2333,6 +2333,7 @@ window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
     
     document.getElementById('maintConfirmHoursInput').value = asset.currentHours;
     document.getElementById('maintConfirmCurrentHoursText').innerText = asset.currentHours;
+    document.getElementById('maintConfirmDateInput').value = getLocalDateString(); // <-- تم إضافة سطر تحديد التاريخ هنا
 
     pendingMaintConfirm = { cId, aIdx, stepIdx };
     document.getElementById('maintenanceConfirmModal').style.display = 'flex';
@@ -2349,9 +2350,14 @@ window.executeMaintenanceDone = function() {
     
     const { cId, aIdx, stepIdx } = pendingMaintConfirm;
     const exactHoursStr = document.getElementById('maintConfirmHoursInput').value;
+    const exactDateStr = document.getElementById('maintConfirmDateInput').value; // <-- تم سحب التاريخ من هنا
 
     if (exactHoursStr === null || exactHoursStr.trim() === "") {
         showToast("الرجاء إدخال عدد الساعات", "error");
+        return;
+    }
+    if (!exactDateStr) { // <-- التأكد من وجود تاريخ
+        showToast("الرجاء إدخال تاريخ الصيانة", "error");
         return;
     }
 
@@ -2376,11 +2382,11 @@ window.executeMaintenanceDone = function() {
     asset.planBaseHours = hours; 
     asset.currentHours = Math.max(asset.currentHours, hours); 
     asset.nextMaintenanceIndex = currentNextIdx + 1; 
-    asset.lastUpdated = getLocalDateString();
+    asset.lastUpdated = exactDateStr; // <-- حفظ التاريخ اللي تم إدخاله بدلاً من تاريخ اليوم
     pendingAutoFillStep = asset.maintenancePlan[currentNextIdx]; 
 
     if (asset.subType && asset.subType.includes('Used')) {
-        asset.startDate = getLocalDateString(); 
+        asset.startDate = exactDateStr; // <-- تحديث تاريخ البدء بناءً على التاريخ المُدخل
     }
 
     saveData();

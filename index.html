@@ -732,6 +732,11 @@
                     <input type="number" id="maintConfirmHoursInput" class="form-control" placeholder="أدخل عدد الساعات..." required>
                 </div>
 
+                <div style="margin-bottom: 15px;">
+                    <label class="form-label" style="font-weight: bold; color: var(--primary);">تاريخ إتمام هذه الصيانة الفعلي:</label>
+                    <input type="date" id="maintConfirmDateInput" class="form-control" required>
+                </div>
+
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="button" class="btn btn-primary" onclick="executeMaintenanceDone()" style="flex: 1;"><i class="fa-solid fa-check"></i> تأكيد الإتمام</button>
                     <button type="button" class="btn" onclick="closeMaintenanceConfirmModal()" style="flex: 1; background: #e2e8f0; color: #475569;"><i class="fa-solid fa-xmark"></i> إلغاء</button>
