@@ -23,7 +23,21 @@
                 <li onclick="switchTab('reports')" id="nav-reports"><i class="fa-solid fa-clipboard-check"></i> تقارير العملاء</li>
             </ul>
         </nav>
-        <div class="user-profile-box">
+
+        <div class="data-management" style="padding: 15px; margin-top: auto;">
+            <p style="font-size: 0.75rem; color: var(--text-light); margin: 0 0 10px 0; font-weight: bold; text-align: center;">إدارة البيانات</p>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="exportBackup()" class="btn" style="flex: 1; background: #e0f2fe; color: #0284c7; font-size: 0.8rem; padding: 8px; justify-content: center; box-shadow: none;" title="تحميل نسخة احتياطية">
+                    <i class="fa-solid fa-download"></i> Backup
+                </button>
+                <button onclick="document.getElementById('importBackupInput').click()" class="btn" style="flex: 1; background: #fef3c7; color: #d97706; font-size: 0.8rem; padding: 8px; justify-content: center; box-shadow: none;" title="استرجاع نسخة احتياطية">
+                    <i class="fa-solid fa-upload"></i> Restore
+                </button>
+                <input type="file" id="importBackupInput" accept=".json" style="display: none;" onchange="importBackup(event)">
+            </div>
+        </div>
+
+        <div class="user-profile-box" style="margin-top: 0;">
             <div style="width:35px; height:35px; background:var(--primary); color:white; border-radius:50%; display:grid; place-items:center; font-size:0.9rem;">👤</div>
             <div>
                 <div style="font-size:0.9rem; font-weight:bold; color:var(--text-main);">Yousef Osama</div>
@@ -739,6 +753,21 @@
                     <button type="button" class="btn btn-primary" onclick="executeMaintenanceDone()" style="flex: 1;"><i class="fa-solid fa-check"></i> تأكيد الإتمام</button>
                     <button type="button" class="btn" onclick="closeMaintenanceConfirmModal()" style="flex: 1; background: #e2e8f0; color: #475569;"><i class="fa-solid fa-xmark"></i> إلغاء</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="customConfirmModal" class="modal" style="z-index: 10000; backdrop-filter: blur(5px);">
+        <div class="modal-content" style="width: 350px; text-align: center; padding: 30px 20px;">
+            <div style="margin-bottom: 15px;">
+                <i class="fa-solid fa-circle-exclamation warning-anim" style="font-size: 3.5rem; color: var(--warning);"></i>
+            </div>
+            <h3 style="margin: 0 0 10px 0; color: var(--text-main); font-size: 1.2rem;">هل أنت متأكد من الإغلاق؟</h3>
+            <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">لم يتم حفظ البيانات، وقد تفقدها إذا قمت بالإغلاق الآن.</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="confirmYesBtn" class="btn" style="flex: 1; background: var(--danger); color: white; border: none;"><i class="fa-solid fa-check"></i> نعم، أغلق</button>
+                <button id="confirmNoBtn" class="btn" style="flex: 1; background: #f1f5f9; color: var(--text-main); border: 1px solid var(--border-color);"><i class="fa-solid fa-xmark"></i> لا، تراجع</button>
             </div>
         </div>
     </div>

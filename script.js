@@ -15,6 +15,7 @@ let editingAssetIndex = null;
 let currentReportAssetIndex = null;
 let currentActiveTaskType = null; 
 let pendingAutoFillStep = null; 
+let pendingAutoFillDate = null; // التعديل الأول: تعريف المتغير لنقل التاريخ
 let pendingMaintConfirm = null; 
 
 // متغيرات مؤقتة لحفظ مؤشر الصيانات المكتملة
@@ -154,6 +155,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.key === 'Escape') closeLightbox();
         }
     });
+
+    // ربط زراير رسالة التأكيد
+    const btnYes = document.getElementById('confirmYesBtn');
+    const btnNo = document.getElementById('confirmNoBtn');
+    if(btnYes) {
+        btnYes.addEventListener('click', function() {
+            if (modalCloseCallback) modalCloseCallback(); 
+            closeConfirmModal(); 
+        });
+    }
+    if(btnNo) {
+        btnNo.addEventListener('click', function() {
+            closeConfirmModal(); 
+        });
+    }
 });
 
 function updateVisitsCount(cIdx) {
@@ -1336,7 +1352,7 @@ function editAsset(index) {
         const freonRadio = document.querySelector(`input[name="dryerFreon"][value="${asset.freon}"]`);
         if (freonRadio) freonRadio.checked = true;
         
-        // جلب القدرة (الآن اصبحت كتابة)
+        // جلب القدرة
         document.getElementById('dryerCapacity').value = asset.capacity || '';
 
         document.getElementById('dryerSerial').value = asset.serial;
@@ -2517,6 +2533,7 @@ window.executeMaintenanceDone = function() {
     asset.nextMaintenanceIndex = currentNextIdx + 1; 
     asset.lastUpdated = exactDateStr; 
     pendingAutoFillStep = asset.maintenancePlan[currentNextIdx]; 
+    pendingAutoFillDate = exactDateStr; // التعديل الثاني: حفظ التاريخ الفعلي
 
     if (asset.subType && asset.subType.includes('Used')) {
         asset.startDate = exactDateStr; 
@@ -2640,20 +2657,6 @@ window.saveRenewedPlan = function() {
     }, 500);
 }
 
-const originalOnClick = window.onclick;
-window.onclick = function(e) { 
-    if (typeof originalOnClick === 'function') originalOnClick(e);
-    if (e.target == modal) closeModal(); 
-    if (e.target == document.getElementById('waModal')) closeWAModal(); 
-    if (e.target == document.getElementById('editVisitModal')) closeEditModal(); 
-    if (e.target == document.getElementById('addMachineModal')) closeAddMachineModal(); 
-    if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
-    if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
-    if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
-    if (e.target == document.getElementById('renewPlanModal')) closeRenewPlanModal();
-    if (e.target == document.getElementById('maintenanceConfirmModal')) closeMaintenanceConfirmModal();
-}
-
 window.autoFillMaintenance = function(stepChar) {
     let btn2000, btn4000;
     document.querySelectorAll('.maint-select-btn').forEach(b => {
@@ -2663,7 +2666,13 @@ window.autoFillMaintenance = function(stepChar) {
     });
     const btn8000 = document.getElementById('btn-8000-main');
 
-    document.getElementById('visitDate').valueAsDate = new Date();
+    // التعديل الثالث: استخدام التاريخ المحفوظ أو تاريخ اليوم
+    if (typeof pendingAutoFillDate !== 'undefined' && pendingAutoFillDate) {
+        document.getElementById('visitDate').value = pendingAutoFillDate;
+        pendingAutoFillDate = null; 
+    } else {
+        document.getElementById('visitDate').valueAsDate = new Date();
+    }
 
     if (stepChar === 'A') { 
         if(btn2000) btn2000.click();
@@ -2680,4 +2689,116 @@ window.autoFillMaintenance = function(stepChar) {
         if(btn2000) { btn2000.disabled = true; btn2000.style.opacity = '0.4'; btn2000.style.cursor = 'not-allowed'; }
         if(btn4000) { btn4000.disabled = true; btn4000.style.opacity = '0.4'; btn4000.style.cursor = 'not-allowed'; }
     }
+};
+
+// --- دوال رسالة تأكيد الإغلاق المخصصة (التعديل الجديد) ---
+let modalCloseCallback = null;
+
+window.showCloseConfirm = function(callback) {
+    modalCloseCallback = callback;
+    document.getElementById('customConfirmModal').style.display = 'flex';
+};
+
+window.closeConfirmModal = function() {
+    document.getElementById('customConfirmModal').style.display = 'none';
+    modalCloseCallback = null;
+};
+
+// --- التحكم في الكليكات خارج المودال ---
+const originalOnClick = window.onclick;
+window.onclick = function(e) { 
+    if (typeof originalOnClick === 'function') originalOnClick(e);
+    
+    // 1. الموديلز اللي فيها إدخال بيانات (بنسأله الأول قبل ما نقفل لو داس في الجزء الغامق)
+    if (e.target == document.getElementById('addMachineModal')) {
+        showCloseConfirm(closeAddMachineModal);
+    } else if (e.target == modal) { 
+        showCloseConfirm(closeModal);
+    } else if (e.target == document.getElementById('editVisitModal')) {
+        showCloseConfirm(closeEditModal);
+    } 
+    
+    // 2. باقي الموديلز اللي عادي تقفل علطول لو داس بره
+    else if (e.target == document.getElementById('waModal')) closeWAModal(); 
+    else if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
+    else if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
+    else if (e.target == document.getElementById('inventoryModal')) closeInventoryModal(); 
+    else if (e.target == document.getElementById('renewPlanModal')) closeRenewPlanModal();
+    else if (e.target == document.getElementById('maintenanceConfirmModal')) closeMaintenanceConfirmModal();
+    else if (e.target == document.getElementById('customConfirmModal')) closeConfirmModal();
+}
+
+
+// =========================================================
+// --- BACKUP & RESTORE LOGIC (إدارة النسخ الاحتياطية) ---
+// =========================================================
+
+// 1. دالة تنزيل النسخة الاحتياطية (Export JSON)
+window.exportBackup = function() {
+    if (contracts.length === 0) {
+        showToast("لا توجد بيانات لعمل نسخة احتياطية", "error");
+        return;
+    }
+
+    // تحويل البيانات لنص JSON منظم
+    const dataStr = JSON.stringify(contracts, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    
+    // إنشاء اسم الملف بتاريخ اليوم
+    const date = new Date();
+    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const fileName = `CATE_System_Backup_${dateString}.json`;
+    
+    // إنشاء رابط وهمي للتحميل
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    
+    // تنظيف بعد التحميل
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast("تم تحميل النسخة الاحتياطية بنجاح!");
+};
+
+// 2. دالة استرجاع النسخة الاحتياطية (Import JSON)
+window.importBackup = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            
+            // التأكد إن الملف بيحتوي على مصفوفة (Array) زي تركيبة البرنامج
+            if (Array.isArray(importedData)) {
+                // رسالة تأكيد لأن الاسترجاع هيمسح البيانات الحالية
+                if (confirm("⚠️ تحذير: استرجاع البيانات سيقوم بمسح كافة البيانات الحالية واستبدالها بالنسخة الاحتياطية. هل أنت متأكد من الاستمرار؟")) {
+                    
+                    // استبدال البيانات
+                    contracts = importedData;
+                    
+                    // حفظ في الـ Local Storage و تحديث الشاشة
+                    saveData();
+                    renderAll();
+                    
+                    showToast("تم استرجاع البيانات بنجاح!");
+                }
+            } else {
+                showToast("ملف النسخة الاحتياطية غير صالح للمنظومة", "error");
+            }
+        } catch (error) {
+            console.error("Error parsing backup file:", error);
+            showToast("حدث خطأ أثناء قراءة الملف، تأكد من أنه ملف JSON صحيح", "error");
+        }
+        
+        // تفريغ الـ Input عشان لو اليوزر حب يرفع نفس الملف تاني
+        event.target.value = '';
+    };
+    
+    reader.readAsText(file);
 };
