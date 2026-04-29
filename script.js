@@ -7,6 +7,7 @@ let forecastChart = null;
 let currentLightboxImages = [];
 let currentLightboxIndex = 0;
 let currentWAContract = null;
+let currentWAAssetIndex = null;
 let currentAssetContractId = null;
 let currentMaintenancePlan = [];
 let currentCompressorMode = 'used'; 
@@ -670,12 +671,11 @@ function renderTable(data) {
             <td data-label="الإنجاز"><div style="display:flex; flex-direction:column; align-items:center; gap:5px;"><span style="font-weight:bold; font-size:0.9rem;">${c.visitsDone} / ${c.totalVisits}</span><div class="progress-track" style="width:100%; margin:0;"><div class="progress-fill" style="width:${progress}%"></div></div></div></td>
             <td data-label="إجراءات">
                 <div class="actions-grid">
-                    <button onclick="openWAModal(${c.id})" class="action-btn btn-icon-wa"><i class="fa-brands fa-whatsapp"></i></button>
                     ${holdBtn}
-                    <button onclick="goToReports(${c.id})" class="action-btn btn-icon-rep"><i class="fa-solid fa-clipboard-list"></i></button>
-                    <button onclick="editContract(${c.id})" class="action-btn btn-icon-edit"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="goToReports(${c.id})" class="action-btn btn-icon-rep" title="التقارير"><i class="fa-solid fa-clipboard-list"></i></button>
+                    <button onclick="editContract(${c.id})" class="action-btn btn-icon-edit" title="تعديل"><i class="fa-solid fa-pen"></i></button>
                     ${pdfButtonDisplay}
-                    <button onclick="deleteContract(${c.id})" class="action-btn btn-icon-del" style="flex-basis: 100%;"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="deleteContract(${c.id})" class="action-btn btn-icon-del" style="flex-basis: 100%;" title="حذف"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </td>
         </tr>`;
@@ -791,6 +791,7 @@ function renderAssetsGrid(assets) {
         container.innerHTML += `
             <div class="asset-card" ${clickAction} style="${cursorStyle}">
                 <div class="asset-actions-overlay">
+                    <button class="asset-btn asset-btn-wa" onclick="event.stopPropagation(); openAssetWAModal(${index})" title="مراسلة عبر واتساب"><i class="fa-brands fa-whatsapp"></i></button>
                     <button class="asset-btn asset-btn-edit" onclick="event.stopPropagation(); editAsset(${index})" title="تعديل"><i class="fa-solid fa-pen"></i></button>
                     <button class="asset-btn asset-btn-del" onclick="event.stopPropagation(); deleteAsset(${index})" title="حذف"><i class="fa-solid fa-trash"></i></button>
                 </div>
@@ -1335,12 +1336,8 @@ function editAsset(index) {
         const freonRadio = document.querySelector(`input[name="dryerFreon"][value="${asset.freon}"]`);
         if (freonRadio) freonRadio.checked = true;
         
-        const capRadio = document.querySelector(`input[name="dryerCapacity"][value="${asset.capacity}"]`);
-        if (capRadio) capRadio.checked = true;
-        else {
-            const defaultCap = document.querySelector(`input[name="dryerCapacity"][value="FX350"]`);
-            if(defaultCap) defaultCap.checked = true;
-        }
+        // جلب القدرة (الآن اصبحت كتابة)
+        document.getElementById('dryerCapacity').value = asset.capacity || '';
 
         document.getElementById('dryerSerial').value = asset.serial;
         document.getElementById('dryerYear').value = asset.year;
@@ -1400,12 +1397,12 @@ document.getElementById('dryerForm').addEventListener('submit', (e) => {
 
     const nameInput = document.querySelector('input[name="dryerName"]:checked');
     const freonInput = document.querySelector('input[name="dryerFreon"]:checked');
-    const capacityInput = document.querySelector('input[name="dryerCapacity"]:checked');
+    const capacityValue = document.getElementById('dryerCapacity').value;
 
     const dryerData = { 
         type: 'dryer', 
         name: nameInput ? nameInput.value : "FD dryer", 
-        capacity: capacityInput ? capacityInput.value : "FX350", 
+        capacity: capacityValue, 
         serial: document.getElementById('dryerSerial').value, 
         year: document.getElementById('dryerYear').value, 
         freon: freonInput ? freonInput.value : "R410" 
@@ -1612,120 +1609,256 @@ function deleteContract(id) { if(confirm('حذف؟')) { contracts = contracts.fi
 function openContractPDF(id) { const c = contracts.find(x => x.id === id); if (c && c.contractPDF) { const win = window.open(); win.document.write('<iframe src="' + c.contractPDF + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>'); } else { showToast("لا يوجد ملف", "error"); } }
 function showContractFilePreview(input) { document.getElementById('contract-file-preview').innerText = input.files[0] ? input.files[0].name : ''; }
 
-function openWAModal(id) { 
-    currentWAContract = contracts.find(c => c.id === id); 
-    const c = currentWAContract;
-    const container = document.getElementById('wa-dynamic-content');
-    if(!container) return; // للتأكد بس إن الـ HTML اتحدث صح
-    container.innerHTML = ''; 
 
-    // 1. زرار الجدول الزمني العام
+// --- دوال الواتساب الاحترافية المخصصة لكل ماكينة ---
+window.openAssetWAModal = function(assetIndex) {
+    currentWAContract = contracts.find(c => c.id === currentAssetContractId);
+    if (!currentWAContract) return;
+    currentWAAssetIndex = assetIndex;
+
+    const c = currentWAContract;
+    const asset = c.assets[assetIndex];
+    const container = document.getElementById('wa-dynamic-content');
+    if(!container) return;
+    container.innerHTML = '';
+
+    let icon = asset.type === 'compressor' ? 'fa-wind' : (asset.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-fan');
+    
+    container.innerHTML += `<p style="grid-column: 1/-1; margin: 0 0 15px; font-weight:bold; color:var(--primary); font-size:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:10px;"><i class="fa-solid ${icon}"></i> خيارات إرسال التقرير لـ: ${asset.name}</p>`;
+
     container.innerHTML += `
-        <button class="wa-btn full-width" onclick="sendWAMessage('schedule')">
-            <i class="fa-solid fa-calendar-days"></i><span>الجدول الزمني العام للصيانات</span>
+        <button class="wa-btn full-width" onclick="sendProfessionalWAMessage('full_process')">
+            <i class="fa-solid fa-clipboard-list"></i><span>إرسال بيانات الماكينة وجدول الصيانة المتوقع</span>
         </button>
     `;
 
-    // 2. توليد زراير لكل ماكينة جوه العقد (لو موجودة)
-    if (c.assets && c.assets.length > 0) {
-        container.innerHTML += `<p style="grid-column: 1/-1; margin: 15px 0 5px; font-weight:bold; color:var(--primary); font-size:0.9rem; border-bottom:1px solid #e2e8f0; padding-bottom:5px;">إرسال بيانات ماكينة محددة:</p>`;
-        
-        c.assets.forEach((asset, idx) => {
-            let icon = asset.type === 'compressor' ? 'fa-wind' : (asset.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-fan');
-            container.innerHTML += `
-                <button class="wa-btn" onclick="sendWAMessage('asset', ${idx})">
-                    <i class="fa-solid ${icon}"></i><span>بيانات ${asset.name}</span>
-                </button>
-            `;
-        });
+    container.innerHTML += `<p style="grid-column: 1/-1; margin: 15px 0 5px; font-weight:bold; color:var(--text-light); font-size:0.9rem;">إرسال إشعار تذكير بصيانة محددة:</p>`;
+
+    if (asset.type === 'compressor') {
+        container.innerHTML += `
+            <button class="wa-btn" onclick="sendProfessionalWAMessage('2000')"><i class="fa-solid fa-check"></i><span>صيانة دورية (2000)</span></button>
+            <button class="wa-btn" onclick="sendProfessionalWAMessage('4000')"><i class="fa-solid fa-check-double"></i><span>صيانة وقائية (4000)</span></button>
+            <button class="wa-btn" onclick="sendProfessionalWAMessage('8000')"><i class="fa-solid fa-triangle-exclamation"></i><span>عمرة نصفية (8000)</span></button>
+            <button class="wa-btn alert-btn" onclick="sendProfessionalWAMessage('24000')"><i class="fa-solid fa-rotate"></i><span>عمرة كاملة (24000)</span></button>
+        `;
+    } else if (asset.type === 'dryer') {
+        container.innerHTML += `
+            <button class="wa-btn full-width" onclick="sendProfessionalWAMessage('dryer_maint')"><i class="fa-solid fa-wrench"></i><span>تذكير بصيانة المجفف (Auto Drain)</span></button>
+        `;
+    } else if (asset.type === 'vacuum') {
+        container.innerHTML += `
+            <button class="wa-btn full-width" onclick="sendProfessionalWAMessage('vacuum_maint')"><i class="fa-solid fa-gears"></i><span>تذكير بصيانة طلمبة التفريغ</span></button>
+        `;
     }
 
-    // 3. زراير التذكيرات العامة
-    container.innerHTML += `<p style="grid-column: 1/-1; margin: 15px 0 5px; font-weight:bold; color:var(--primary); font-size:0.9rem; border-bottom:1px solid #e2e8f0; padding-bottom:5px;">تذكير بموعد صيانة:</p>`;
-    container.innerHTML += `
-        <button class="wa-btn" onclick="sendWAMessage('2000')"><i class="fa-solid fa-clock"></i><span>تذكير 2000 ساعة</span></button>
-        <button class="wa-btn" onclick="sendWAMessage('4000')"><i class="fa-solid fa-filter"></i><span>تذكير 4000 ساعة</span></button>
-        <button class="wa-btn" onclick="sendWAMessage('8000')"><i class="fa-solid fa-screwdriver-wrench"></i><span>تذكير 8000 ساعة</span></button>
-        <button class="wa-btn alert-btn" onclick="sendWAMessage('24000')"><i class="fa-solid fa-rotate"></i><span>تذكير عمرة 24000</span></button>
-    `;
-
-    document.getElementById('waModal').style.display = 'flex'; 
+    document.getElementById('waModal').style.display = 'flex';
 }
 
-function closeWAModal() { document.getElementById('waModal').style.display = 'none'; }
-
-function sendWAMessage(type, assetIndex = null) {
-    if(!currentWAContract) return;
+window.sendProfessionalWAMessage = function(actionType) {
+    if(!currentWAContract || currentWAAssetIndex === null) return;
     const c = currentWAContract;
+    const a = c.assets[currentWAAssetIndex];
     const phone = formatPhone(c.phone);
-    let msg = "";
 
-    if (type === 'schedule') {
-        if(c.dailyHours <= 0) { 
-            showToast("يرجى تحديد ساعات التشغيل في العقد أولاً للحساب", "error"); 
-            return; 
-        }
+    let msg = `السادة الكرام / شركة *${c.company}*\n`;
+    msg += `عناية المهندس / *${c.client}*\n\n`;
+    msg += `تحية طيبة وبعد،،،\n`;
+    msg += `نتواصل معكم من قسم الصيانة والدعم الفني بشركة *CATE* (Compressed Air Technology Egypt) الموزع المعتمد لشركة أطلس كوبكو.\n\n`;
 
-        const d2000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 2000).str;
-        const d4000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 4000).str;
-        const d8000 = calculateDate(c.startDate, c.dailyHours, c.daysOff, 8000).str;
+    if (actionType === 'full_process') {
+        msg += `في إطار حرصنا الدائم على متابعة كفاءة واستمرارية العمل لمعداتكم، نود إفادتكم ببيانات الماكينة والجدول الزمني المتوقع للصيانات الخاصة بـ (*${a.name}*):\n\n`;
 
-        msg = `مرحباً، إليكم جدول الصيانة المتوقع لشركة ${c.company}:\n\n` +
-              `🔧 صيانة 2000 ساعة: متوقعة بتاريخ (${d2000})\n` +
-              `🛠️ صيانة 4000 ساعة: متوقعة بتاريخ (${d4000})\n` +
-              `⚙️ عمرة 8000 ساعة: متوقعة بتاريخ (${d8000})\n\n` +
-              `يرجى العلم أن هذه المواعيد تقديرية بناءً على معدل التشغيل (${c.dailyHours} ساعة/يوم).`;
-    
-    } else if (type === 'asset' && assetIndex !== null) {
-        const a = c.assets[assetIndex];
-        msg = `مرحباً، إليكم بيانات الماكينة المسجلة لدينا لشركة ${c.company}:\n\n`;
-        msg += `📌 *اسم الماكينة:* ${a.name}\n`;
-        msg += `🔢 *الرقم التسلسلي (S/N):* ${a.serial}\n`;
-        msg += `📅 *سنة التصنيع:* ${a.year}\n`;
+        msg += `📋 *تفاصيل الماكينة:*\n`;
+        msg += `🔸 الموديل: ${a.name}\n`;
+        msg += `🔸 الرقم التسلسلي (S/N): ${a.serial}\n`;
+        msg += `🔸 سنة التصنيع: ${a.year}\n`;
 
         if (a.type === 'compressor') {
-            msg += `⏱️ *ساعات التشغيل المسجلة:* ${a.currentHours} ساعة\n`;
-            
-            let nextMaintText = "تم الانتهاء من الخطة الحالية";
-            if (a.maintenancePlan && a.maintenancePlan.length > (a.nextMaintenanceIndex || 0)) {
-                const nextStepChar = a.maintenancePlan[a.nextMaintenanceIndex || 0];
-                let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
-                let target = base + 2000;
-                nextMaintText = `${getMaintenanceLabel(nextStepChar)} (عند ${target} ساعة)`;
-            }
-            msg += `🛠️ *الصيانة القادمة المستحقة:* ${nextMaintText}\n`;
-            msg += `⚡ *معدل التشغيل:* ${a.dailyHours || c.dailyHours || 0} ساعة/يوم\n`;
-            
-        } else if (a.type === 'dryer') {
-            msg += `❄️ *نوع الفريون:* ${a.freon}\n`;
-            msg += `📏 *القدرة (Capacity):* ${a.capacity || 'N/A'}\n`;
-        } else if (a.type === 'vacuum') {
-            msg += `💨 *الضغط:* ${a.bar} Bar\n`;
-        }
-        
-    } else {
-        if(c.dailyHours <= 0) { 
-            showToast("يرجى تحديد ساعات التشغيل في العقد أولاً للحساب", "error"); 
-            return; 
-        }
-        const hours = parseInt(type);
-        const dateCalc = calculateDate(c.startDate, c.dailyHours, c.daysOff, hours).str;
-        
-        let maintName = "صيانة";
-        if(hours >= 24000) maintName = "عمرة شاملة";
-        else if(hours >= 8000) maintName = "عمرة";
+            msg += `🔸 ساعات التشغيل المسجلة لدينا: ${a.currentHours} ساعة\n`;
+            msg += `🔸 معدل التشغيل التقريبي: ${a.dailyHours || c.dailyHours || 0} ساعة/يوم\n\n`;
 
-        msg = `تذكير هام من شركة CATE\n\n` +
-              `السادة شركة ${c.company}،\n` +
-              `نود تذكيركم باقتراب موعد ${maintName} الـ ${hours} ساعة.\n` +
-              `⏳ (متبقي تقريباً 50 ساعة تشغيل على موعد الصيانة)\n` +
-              `📅 الموعد المتوقع تقريباً: ${dateCalc}\n\n` +
-              `يرجى التنسيق لعمل اللازم للحفاظ على كفاءة المعدات.`;
+            msg += `📅 *الجدول الزمني لخطة الصيانة:*\n`;
+            if (a.maintenancePlan && a.maintenancePlan.length > 0) {
+                let nextIdx = a.nextMaintenanceIndex || 0;
+                let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                const currentHours = a.currentHours || 0;
+                const dailyHours = a.dailyHours || 0;
+                const daysOff = a.daysOff || 0;
+
+                for(let i=0; i<a.maintenancePlan.length; i++) {
+                    let stepChar = a.maintenancePlan[i];
+                    let target = base + ((i - nextIdx + 1) * 2000);
+                    let label = getMaintenanceLabel(stepChar);
+
+                    if (i < nextIdx) {
+                        msg += `✔️ *${label}* عند ${target} ساعة (مكتملة)\n`;
+                    } else {
+                        let hoursRemaining = target - currentHours;
+                        let dateStr = 'غير محدد';
+                        let statusEmoji = '🕒';
+                        let statusText = '(مجدولة)';
+
+                        if (hoursRemaining <= 0) {
+                            statusEmoji = '🔴';
+                            statusText = '(مستحقة)';
+                            dateStr = 'مطلوبة فوراً';
+                        } else if (dailyHours > 0) {
+                            if (a.subType && a.subType.includes('Used')) {
+                                const targetAddedHours = target - base;
+                                const dateCalc = calculateUsedCompressorDate(a.startDate, dailyHours, daysOff, targetAddedHours);
+                                dateStr = dateCalc.str;
+                            } else {
+                                let calcBaseDate = new Date();
+                                if (a.lastUpdated) calcBaseDate = new Date(a.lastUpdated);
+                                else if (a.currentHours === 0 && a.startDate) calcBaseDate = new Date(a.startDate);
+
+                                const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                                dateStr = calc.str;
+                            }
+                        }
+
+                        msg += `${statusEmoji} *${label}* عند ${target} ساعة ${statusText}\n`;
+                        msg += `     التاريخ المتوقع: ${dateStr}\n`;
+                    }
+                }
+            } else {
+                msg += `لا توجد خطة صيانة مجدولة بعد.\n`;
+            }
+        } else if (a.type === 'dryer') {
+            msg += `🔸 نوع الفريون: ${a.freon}\n`;
+            msg += `🔸 القدرة: ${a.capacity || 'N/A'}\n\n`;
+        } else if (a.type === 'vacuum') {
+            msg += `🔸 الضغط: ${a.bar} Bar\n\n`;
+        }
+
+        msg += `\nنحن دائماً في خدمتكم لتقديم أفضل دعم فني لضمان استمرارية الإنتاج بأعلى كفاءة.`;
+
+    } else {
+        let maintName = "";
+        if(actionType === '2000') maintName = "الصيانة الدورية (2000 ساعة)";
+        else if(actionType === '4000') maintName = "الصيانة الوقائية (4000 ساعة)";
+        else if(actionType === '8000') maintName = "العمرة النصفية (8000 ساعة)";
+        else if(actionType === '24000') maintName = "العمرة الشاملة (24000 ساعة)";
+        else if(actionType === 'dryer_maint') maintName = "الصيانة الدورية وتغيير طقم التصريف (Auto Drain Kit)";
+        else if(actionType === 'vacuum_maint') maintName = "الصيانة الشاملة لطلمبة التفريغ";
+
+        msg += `في إطار خطة الصيانة الوقائية للحفاظ على أداء المعدات وتجنب أي توقفات مفاجئة للإنتاج، نود تذكيركم باقتراب موعد:\n\n`;
+        msg += `🔧 *${maintName}*\n`;
+        msg += `للماكينة: *${a.name}*\n`;
+        msg += `الرقم التسلسلي: *${a.serial}*\n\n`;
+
+        if (a.type === 'compressor' && a.dailyHours > 0) {
+            msg += `يرجى التفضل بالعلم أن الماكينة تقترب من الساعات المستحقة لإتمام هذه الصيانة بنجاح.\n\n`;
+        }
+
+        msg += `برجاء التكرم بالتنسيق مع فريق الصيانة لديكم، وتحديد موعد مناسب لزيارة المهندس المختص لإجراء الصيانة اللازمة لضمان سلامة الماكينة.\n\n`;
+        msg += `يسعدنا الرد على استفساراتكم وتلبية طلباتكم في أي وقت.`;
     }
+
+    msg += `\n\nوتفضلوا بقبول فائق الاحترام والتقدير،،،\n`;
+    msg += `*قسم خدمة ما بعد البيع والصيانة*\n`;
+    msg += `*CATE - Compressed Air Technology*`;
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
     closeWAModal();
 }
+
+function closeWAModal() { document.getElementById('waModal').style.display = 'none'; }
+
+
+// دالة إرسال التقرير الشامل لكل الماكينات في العقد عبر الواتساب
+window.sendFullContractWAMessage = function() {
+    if(!currentAssetContractId) return;
+    const c = contracts.find(x => x.id === currentAssetContractId);
+    
+    if(!c || !c.assets || c.assets.length === 0) {
+        showToast("لا توجد ماكينات مسجلة في هذا العقد لإرسال تقريرها.", "error");
+        return;
+    }
+
+    const phone = formatPhone(c.phone);
+
+    let msg = `السادة الكرام / شركة *${c.company}*\n`;
+    msg += `عناية المهندس / *${c.client}*\n\n`;
+    msg += `تحية طيبة وبعد،،،\n`;
+    msg += `نتواصل معكم من قسم الصيانة والدعم الفني بشركة *CATE* (Compressed Air Technology Egypt) الموزع المعتمد لشركة أطلس كوبكو.\n\n`;
+    msg += `مرفق لسيادتكم التقرير الشامل لبيانات الماكينات والمعدات، والجدول الزمني المتوقع للصيانات:\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    c.assets.forEach((a, index) => {
+        msg += `🔹 *الماكينة (${index + 1}): ${a.name}*\n`;
+        msg += `🔸 الرقم التسلسلي (S/N): ${a.serial}\n`;
+        msg += `🔸 سنة التصنيع: ${a.year}\n`;
+
+        if (a.type === 'compressor') {
+            msg += `🔸 ساعات التشغيل المسجلة لدينا: ${a.currentHours} ساعة\n`;
+            msg += `🔸 معدل التشغيل التقريبي: ${a.dailyHours || c.dailyHours || 0} ساعة/يوم\n\n`;
+
+            msg += `📅 *خطة الصيانة:*\n`;
+            if (a.maintenancePlan && a.maintenancePlan.length > 0) {
+                let nextIdx = a.nextMaintenanceIndex || 0;
+                let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                const currentHours = a.currentHours || 0;
+                const dailyHours = a.dailyHours || 0;
+                const daysOff = a.daysOff || 0;
+
+                for(let i=0; i<a.maintenancePlan.length; i++) {
+                    let stepChar = a.maintenancePlan[i];
+                    let target = base + ((i - nextIdx + 1) * 2000);
+                    let label = getMaintenanceLabel(stepChar);
+
+                    if (i < nextIdx) {
+                        msg += `✔️ *${label}* عند ${target} ساعة (مكتملة)\n`;
+                    } else {
+                        let hoursRemaining = target - currentHours;
+                        let dateStr = 'غير محدد';
+                        let statusEmoji = '🕒';
+                        let statusText = '(مجدولة)';
+
+                        if (hoursRemaining <= 0) {
+                            statusEmoji = '🔴';
+                            statusText = '(مستحقة)';
+                            dateStr = 'مطلوبة فوراً';
+                        } else if (dailyHours > 0) {
+                            if (a.subType && a.subType.includes('Used')) {
+                                const targetAddedHours = target - base;
+                                const dateCalc = calculateUsedCompressorDate(a.startDate, dailyHours, daysOff, targetAddedHours);
+                                dateStr = dateCalc.str;
+                            } else {
+                                let calcBaseDate = new Date();
+                                if (a.lastUpdated) calcBaseDate = new Date(a.lastUpdated);
+                                else if (a.currentHours === 0 && a.startDate) calcBaseDate = new Date(a.startDate);
+
+                                const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                                dateStr = calc.str;
+                            }
+                        }
+
+                        msg += `${statusEmoji} *${label}* عند ${target} ساعة ${statusText}\n`;
+                        msg += `     التاريخ المتوقع: ${dateStr}\n`;
+                    }
+                }
+            } else {
+                msg += `لا توجد خطة صيانة مجدولة بعد.\n`;
+            }
+        } else if (a.type === 'dryer') {
+            msg += `🔸 نوع الفريون: ${a.freon}\n`;
+            msg += `🔸 القدرة: ${a.capacity || 'N/A'}\n`;
+        } else if (a.type === 'vacuum') {
+            msg += `🔸 الضغط: ${a.bar} Bar\n`;
+        }
+        
+        msg += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    });
+
+    msg += `نحن دائماً في خدمتكم لتقديم أفضل دعم فني لضمان استمرارية الإنتاج بأعلى كفاءة.\n\n`;
+    msg += `وتفضلوا بقبول فائق الاحترام والتقدير،،،\n`;
+    msg += `*قسم خدمة ما بعد البيع والصيانة*\n`;
+    msg += `*CATE - Compressed Air Technology*`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+
 
 function updateNotifications() {
     const notifList = document.getElementById('notif-list-body'); 
@@ -2333,7 +2466,7 @@ window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
     
     document.getElementById('maintConfirmHoursInput').value = asset.currentHours;
     document.getElementById('maintConfirmCurrentHoursText').innerText = asset.currentHours;
-    document.getElementById('maintConfirmDateInput').value = getLocalDateString(); // <-- تم إضافة سطر تحديد التاريخ هنا
+    document.getElementById('maintConfirmDateInput').value = getLocalDateString(); 
 
     pendingMaintConfirm = { cId, aIdx, stepIdx };
     document.getElementById('maintenanceConfirmModal').style.display = 'flex';
@@ -2350,13 +2483,13 @@ window.executeMaintenanceDone = function() {
     
     const { cId, aIdx, stepIdx } = pendingMaintConfirm;
     const exactHoursStr = document.getElementById('maintConfirmHoursInput').value;
-    const exactDateStr = document.getElementById('maintConfirmDateInput').value; // <-- تم سحب التاريخ من هنا
+    const exactDateStr = document.getElementById('maintConfirmDateInput').value; 
 
     if (exactHoursStr === null || exactHoursStr.trim() === "") {
         showToast("الرجاء إدخال عدد الساعات", "error");
         return;
     }
-    if (!exactDateStr) { // <-- التأكد من وجود تاريخ
+    if (!exactDateStr) { 
         showToast("الرجاء إدخال تاريخ الصيانة", "error");
         return;
     }
@@ -2382,11 +2515,11 @@ window.executeMaintenanceDone = function() {
     asset.planBaseHours = hours; 
     asset.currentHours = Math.max(asset.currentHours, hours); 
     asset.nextMaintenanceIndex = currentNextIdx + 1; 
-    asset.lastUpdated = exactDateStr; // <-- حفظ التاريخ اللي تم إدخاله بدلاً من تاريخ اليوم
+    asset.lastUpdated = exactDateStr; 
     pendingAutoFillStep = asset.maintenancePlan[currentNextIdx]; 
 
     if (asset.subType && asset.subType.includes('Used')) {
-        asset.startDate = exactDateStr; // <-- تحديث تاريخ البدء بناءً على التاريخ المُدخل
+        asset.startDate = exactDateStr; 
     }
 
     saveData();
@@ -2507,7 +2640,6 @@ window.saveRenewedPlan = function() {
     }, 500);
 }
 
-// تعديل دالة الإغلاق عشان تشمل الـ Modal الجديد
 const originalOnClick = window.onclick;
 window.onclick = function(e) { 
     if (typeof originalOnClick === 'function') originalOnClick(e);

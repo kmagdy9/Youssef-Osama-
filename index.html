@@ -190,6 +190,7 @@
                         <p style="margin:5px 0 0; font-size:0.9rem; color:var(--text-light);">إدارة الماكينات والمعدات (Compressors, Dryers & Vacuum Pumps)</p>
                     </div>
                     <div style="display:flex; gap:10px;">
+                        <button class="btn btn-wa-all" onclick="sendFullContractWAMessage()"><i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> تقرير شامل</button>
                         <button class="btn" style="background:#0284c7; color:white; border:none;" onclick="openInventoryModal()"><i class="fa-solid fa-boxes-stacked"></i> جرد قطع الغيار</button>
                         <button class="btn btn-primary" onclick="openAddMachineModal()"><i class="fa-solid fa-plus"></i> ADD</button>
                     </div>
@@ -516,10 +517,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">قدرة المجفف (Capacity)</label>
-                        <div style="display: flex; gap: 20px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
-                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerCapacity" value="FX350" checked> FX350</label>
-                            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; margin:0;"><input type="radio" name="dryerCapacity" value="FD100"> FD100</label>
-                        </div>
+                        <input type="text" class="form-control" id="dryerCapacity" placeholder="مثال: FX350" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">الرقم التسلسلي (Serial Number)</label>
