@@ -15,7 +15,7 @@ let editingAssetIndex = null;
 let currentReportAssetIndex = null;
 let currentActiveTaskType = null; 
 let pendingAutoFillStep = null; 
-let pendingAutoFillDate = null; // التعديل الأول: تعريف المتغير لنقل التاريخ
+let pendingAutoFillDate = null; 
 let pendingMaintConfirm = null; 
 
 // متغيرات مؤقتة لحفظ مؤشر الصيانات المكتملة
@@ -156,7 +156,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ربط زراير رسالة التأكيد
     const btnYes = document.getElementById('confirmYesBtn');
     const btnNo = document.getElementById('confirmNoBtn');
     if(btnYes) {
@@ -787,7 +786,11 @@ function renderAssetsGrid(assets) {
             let nextMaintText = "تم الانتهاء من الخطة";
             let nextColor = "#cbd5e1";
             
-            if (asset.maintenancePlan && asset.maintenancePlan.length > (asset.nextMaintenanceIndex || 0)) {
+            if (asset.isPlanHold || !asset.maintenancePlan || asset.maintenancePlan.length === 0) {
+                nextMaintText = "⚠️ معلق (بانتظار تحديد خطة)";
+                nextColor = "#d97706";
+            } 
+            else if (asset.maintenancePlan && asset.maintenancePlan.length > (asset.nextMaintenanceIndex || 0)) {
                 const nextStepChar = asset.maintenancePlan[asset.nextMaintenanceIndex || 0];
                 nextMaintText = `القادمة: ${getMaintenanceLabel(nextStepChar)}`;
                 nextColor = getMaintenanceColor(nextStepChar);
@@ -1352,9 +1355,7 @@ function editAsset(index) {
         const freonRadio = document.querySelector(`input[name="dryerFreon"][value="${asset.freon}"]`);
         if (freonRadio) freonRadio.checked = true;
         
-        // جلب القدرة
         document.getElementById('dryerCapacity').value = asset.capacity || '';
-
         document.getElementById('dryerSerial').value = asset.serial;
         document.getElementById('dryerYear').value = asset.year;
     } else if (asset.type === 'vacuum') {
@@ -1535,7 +1536,8 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
             maintenancePlan: [...currentMaintenancePlan], 
             nextMaintenanceIndex: nextMaintIdx,
             completedStepsHours: completedSteps,
-            lastUpdated: lastUpdatedDate 
+            lastUpdated: lastUpdatedDate,
+            isPlanHold: false 
         };
 
         if (!contracts[idx].assets) contracts[idx].assets = [];
@@ -2382,8 +2384,17 @@ function closeMachineDetailsModal() {
 function renderDetailedTimeline(asset, assetIndex) {
     const container = document.getElementById('machine-plan-timeline');
     container.innerHTML = '';
-    if (!asset.maintenancePlan || asset.maintenancePlan.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">لا توجد خطة صيانة مسجلة</div>';
+    
+    // التعديل هنا: إظهار الماكينة المعلقة للمستخدم وإعطائه فرصة للتجديد
+    if (!asset.maintenancePlan || asset.maintenancePlan.length === 0 || asset.isPlanHold) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:30px 20px; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 12px;">
+                <i class="fa-solid fa-circle-pause" style="font-size:3rem; color:#f59e0b; margin-bottom:15px;"></i>
+                <p style="margin-bottom:15px; font-weight:bold; color:#d97706;">الماكينة معلقة ولا توجد خطة صيانة مسجلة حالياً</p>
+                <button class="btn btn-primary" onclick="closeMachineDetailsModal(); openRenewPlanModal(${currentAssetContractId}, ${assetIndex})" style="box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); background: #f59e0b; border: none;">
+                    <i class="fa-solid fa-plus"></i> بناء خطة جديدة الآن
+                </button>
+            </div>`;
         return;
     }
 
@@ -2533,7 +2544,7 @@ window.executeMaintenanceDone = function() {
     asset.nextMaintenanceIndex = currentNextIdx + 1; 
     asset.lastUpdated = exactDateStr; 
     pendingAutoFillStep = asset.maintenancePlan[currentNextIdx]; 
-    pendingAutoFillDate = exactDateStr; // التعديل الثاني: حفظ التاريخ الفعلي
+    pendingAutoFillDate = exactDateStr;
 
     if (asset.subType && asset.subType.includes('Used')) {
         asset.startDate = exactDateStr; 
@@ -2630,6 +2641,30 @@ window.updateRenewPlanPreview = function() {
     });
 };
 
+// --- دالة تعليق الماكينة (Hold) ---
+window.holdMachinePlan = function() {
+    if(!confirm('هل أنت متأكد من تعليق خطة الماكينة؟ (يمكنك إضافة خطة لاحقاً)')) return;
+    
+    const cIdx = contracts.findIndex(c => c.id === renewContractId);
+    if(cIdx === -1) return;
+    const asset = contracts[cIdx].assets[renewAssetIndex];
+    
+    // تفريغ الخطة وتفعيل وضع التعليق
+    asset.maintenancePlan = [];
+    asset.nextMaintenanceIndex = 0;
+    asset.completedStepsHours = [];
+    asset.isPlanHold = true; 
+    
+    saveData();
+    renderAll();
+    closeRenewPlanModal();
+    showToast("تم تعليق الماكينة (بانتظار العميل)", "success");
+    
+    setTimeout(() => {
+        triggerReportRedirect(renewContractId, renewAssetIndex);
+    }, 500);
+};
+
 window.saveRenewedPlan = function() {
     if(renewPlanArray.length === 0) {
         alert('من فضلك قم بإضافة خطوة واحدة على الأقل للخطة.');
@@ -2642,6 +2677,7 @@ window.saveRenewedPlan = function() {
     asset.maintenancePlan = [...renewPlanArray];
     asset.nextMaintenanceIndex = 0;
     asset.completedStepsHours = [];
+    asset.isPlanHold = false; // فك التعليق لو كانت معلقة
     
     if (asset.subType && asset.subType.includes('Used')) {
         asset.startDate = getLocalDateString(); 
@@ -2666,7 +2702,6 @@ window.autoFillMaintenance = function(stepChar) {
     });
     const btn8000 = document.getElementById('btn-8000-main');
 
-    // التعديل الثالث: استخدام التاريخ المحفوظ أو تاريخ اليوم
     if (typeof pendingAutoFillDate !== 'undefined' && pendingAutoFillDate) {
         document.getElementById('visitDate').value = pendingAutoFillDate;
         pendingAutoFillDate = null; 
@@ -2691,7 +2726,6 @@ window.autoFillMaintenance = function(stepChar) {
     }
 };
 
-// --- دوال رسالة تأكيد الإغلاق المخصصة (التعديل الجديد) ---
 let modalCloseCallback = null;
 
 window.showCloseConfirm = function(callback) {
@@ -2704,12 +2738,10 @@ window.closeConfirmModal = function() {
     modalCloseCallback = null;
 };
 
-// --- التحكم في الكليكات خارج المودال ---
 const originalOnClick = window.onclick;
 window.onclick = function(e) { 
     if (typeof originalOnClick === 'function') originalOnClick(e);
     
-    // 1. الموديلز اللي فيها إدخال بيانات (بنسأله الأول قبل ما نقفل لو داس في الجزء الغامق)
     if (e.target == document.getElementById('addMachineModal')) {
         showCloseConfirm(closeAddMachineModal);
     } else if (e.target == modal) { 
@@ -2717,8 +2749,6 @@ window.onclick = function(e) {
     } else if (e.target == document.getElementById('editVisitModal')) {
         showCloseConfirm(closeEditModal);
     } 
-    
-    // 2. باقي الموديلز اللي عادي تقفل علطول لو داس بره
     else if (e.target == document.getElementById('waModal')) closeWAModal(); 
     else if (e.target == document.getElementById('unholdModal')) closeUnholdModal(); 
     else if (e.target == document.getElementById('machineDetailsModal')) closeMachineDetailsModal(); 
@@ -2728,43 +2758,36 @@ window.onclick = function(e) {
     else if (e.target == document.getElementById('customConfirmModal')) closeConfirmModal();
 }
 
-
 // =========================================================
 // --- BACKUP & RESTORE LOGIC (إدارة النسخ الاحتياطية) ---
 // =========================================================
 
-// 1. دالة تنزيل النسخة الاحتياطية (Export JSON)
 window.exportBackup = function() {
     if (contracts.length === 0) {
         showToast("لا توجد بيانات لعمل نسخة احتياطية", "error");
         return;
     }
 
-    // تحويل البيانات لنص JSON منظم
     const dataStr = JSON.stringify(contracts, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     
-    // إنشاء اسم الملف بتاريخ اليوم
     const date = new Date();
     const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     const fileName = `CATE_System_Backup_${dateString}.json`;
     
-    // إنشاء رابط وهمي للتحميل
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
     document.body.appendChild(a);
     a.click();
     
-    // تنظيف بعد التحميل
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
     showToast("تم تحميل النسخة الاحتياطية بنجاح!");
 };
 
-// 2. دالة استرجاع النسخة الاحتياطية (Import JSON)
 window.importBackup = function(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -2774,15 +2797,11 @@ window.importBackup = function(event) {
         try {
             const importedData = JSON.parse(e.target.result);
             
-            // التأكد إن الملف بيحتوي على مصفوفة (Array) زي تركيبة البرنامج
             if (Array.isArray(importedData)) {
-                // رسالة تأكيد لأن الاسترجاع هيمسح البيانات الحالية
                 if (confirm("⚠️ تحذير: استرجاع البيانات سيقوم بمسح كافة البيانات الحالية واستبدالها بالنسخة الاحتياطية. هل أنت متأكد من الاستمرار؟")) {
                     
-                    // استبدال البيانات
                     contracts = importedData;
                     
-                    // حفظ في الـ Local Storage و تحديث الشاشة
                     saveData();
                     renderAll();
                     
@@ -2796,7 +2815,6 @@ window.importBackup = function(event) {
             showToast("حدث خطأ أثناء قراءة الملف، تأكد من أنه ملف JSON صحيح", "error");
         }
         
-        // تفريغ الـ Input عشان لو اليوزر حب يرفع نفس الملف تاني
         event.target.value = '';
     };
     

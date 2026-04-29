@@ -708,8 +708,13 @@
                 <div class="plan-timeline" id="renewPlanTimelineContainer"></div>
             </div>
 
-            <div style="text-align: left; margin-top: 25px;">
-                <button type="button" class="btn btn-primary" onclick="saveRenewedPlan()"><i class="fa-solid fa-check"></i> حفظ الخطة الجديدة</button>
+            <div style="text-align: left; margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn" onclick="holdMachinePlan()" style="background: #fffbeb; color: #d97706; border: 1px solid #fcd34d;">
+                    <i class="fa-solid fa-pause"></i> تعليق مؤقت (Hold)
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveRenewedPlan()">
+                    <i class="fa-solid fa-check"></i> حفظ الخطة الجديدة
+                </button>
             </div>
         </div>
     </div>
