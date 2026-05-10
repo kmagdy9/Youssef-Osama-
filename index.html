@@ -204,9 +204,17 @@
                         <p style="margin:5px 0 0; font-size:0.9rem; color:var(--text-light);">إدارة الماكينات والمعدات (Compressors, Dryers & Vacuum Pumps)</p>
                     </div>
                     <div style="display:flex; gap:10px;">
-                        <button class="btn btn-wa-all" onclick="sendFullContractWAMessage()"><i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> تقرير شامل</button>
-                        <button class="btn" style="background:#0284c7; color:white; border:none;" onclick="openInventoryModal()"><i class="fa-solid fa-boxes-stacked"></i> جرد قطع الغيار</button>
-                        <button class="btn btn-primary" onclick="openAddMachineModal()"><i class="fa-solid fa-plus"></i> ADD</button>
+                        <!-- زر الواتساب باسم الشركة -->
+                        <button class="btn btn-wa-company" id="wa-company-btn" onclick="sendCompanyGreetingWA()"><i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> <span id="wa-company-name">مراسلة الشركة</span></button>
+                        
+                        <!-- زر تقرير شامل PDF -->
+                        <button class="btn btn-pdf-report" onclick="printFullContractPDF()"><i class="fa-solid fa-file-pdf" style="font-size:1.2rem;"></i> تقرير شامل PDF</button>
+                        
+                        <!-- زر جرد قطع الغيار -->
+                        <button class="btn btn-inventory" onclick="openInventoryModal()"><i class="fa-solid fa-boxes-stacked"></i> جرد قطع الغيار</button>
+                        
+                        <!-- زر ADD -->
+                        <button class="btn btn-primary-add" onclick="openAddMachineModal()"><i class="fa-solid fa-plus"></i> ADD</button>
                     </div>
                 </div>
                 
@@ -263,7 +271,7 @@
                     </div>
 
                     <div id="report-action-section" class="hidden" style="animation: fadeInUp 0.4s ease-out;">
-                        <div style="margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+                        <div style="margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
                             <h3 style="margin:0; color: var(--primary); font-size:1.1rem;">
                                 <i class="fa-solid fa-2"></i> سجل الماكينة: <span id="selected-asset-name" style="text-decoration:underline;"></span>
                             </h3>
@@ -379,6 +387,9 @@
                                         <div id="files-preview" class="file-list-preview" style="margin-top:5px;"></div>
                                     </div>
                                     <button type="submit" class="btn btn-primary" style="width:100%"><i class="fa-solid fa-check"></i> حفظ في سجل الماكينة</button>
+                                    <button type="button" class="btn btn-pdf" onclick="printAssetReport()" style="width:100%; margin-top:10px;">
+                                        <i class="fa-solid fa-file-pdf"></i> حفظ كـ PDF لإرساله للعميل
+                                    </button>
                                 </form>
                             </div>
 
@@ -391,6 +402,10 @@
                 </div>
             </div>
         </div>
+
+        <footer class="main-footer">
+            <p>© Copyright 2026 All Rights Reserved | created by <strong>Khaled Magdy - Yousef Osama</strong></p>
+        </footer>
     </main>
 
     <div id="toast-container"></div>
@@ -776,5 +791,91 @@
             </div>
         </div>
     </div>
+
+<!-- Print Template القديم لتقرير زيارة واحدة -->
+<div id="pdf-print-template" style="display: none;">
+    <div class="print-header" style="flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #006F8F; padding-bottom: 15px; margin-bottom: 25px;">
+        <img src="Only CATE.png" alt="CATE Logo" style="max-height: 100px; margin-bottom: 10px;">
+        <h1 style="color: #006F8F; font-size: 26px; margin: 10px 0 5px 0; font-weight: 800;">تقرير خطة الصيانة الوقائية</h1>
+        <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: 900; color: #8b0000;" id="print-comp-name"></p>
+    </div>
+
+    <div class="print-box" style="margin-bottom: 20px;">
+        <div class="print-box-title" style="background: #16a34a !important;">
+            <i class="fa-solid fa-wrench"></i> تفاصيل الصيانة الحالية (CURRENT MAINTENANCE)
+        </div>
+        <div class="print-box-content" id="print-current-visit">
+            <!-- سيتم إضافة المهام وقطع الغيار هنا تلقائياً -->
+        </div>
+    </div>
+
+    <div class="print-grid">
+        <div class="print-box">
+            <div class="print-box-title">
+                <i class="fa-solid fa-microchip"></i> بيانات الماكينة (ASSET PROFILE)
+            </div>
+            <div class="print-box-content">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 12px; font-size: 1.1rem;"><strong>خطة الصيانة للموديل:</strong> <span id="print-asset-model" style="color: #006F8F; font-weight: bold;"></span></li>
+                    <li style="margin-bottom: 12px;"><strong>الرقم التسلسلي (S/N):</strong> <span id="print-asset-serial"></span></li>
+                    <li style="margin-bottom: 12px;"><strong>سنة التصنيع:</strong> <span id="print-asset-year"></span></li>
+                    <li style="margin-bottom: 12px;"><strong>ساعات التشغيل الحالية:</strong> <span id="print-asset-hours"></span></li>
+                    <li style="margin-bottom: 0;"><strong>معدل التشغيل التقريبي:</strong> <span id="print-asset-rate"></span></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="print-box">
+            <div class="print-box-title">
+                <i class="fa-solid fa-clipboard-check"></i> حالة الصيانة (MAINTENANCE STATUS)
+            </div>
+            <div class="print-box-content">
+                <div class="print-status-row">
+                    <div id="print-last-maint"></div>
+                    <div id="print-last-status" style="text-align: left;"></div>
+                </div>
+                <div class="print-status-row" style="margin-top: 15px; padding-top: 15px;">
+                    <div id="print-next-maint"></div>
+                    <div id="print-next-status" style="text-align: left;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="print-box">
+        <div class="print-box-title">
+            <i class="fa-solid fa-triangle-exclamation"></i> ملاحظات هامة (CRITICAL NOTES)
+        </div>
+        <div class="print-box-content">
+            <ul style="margin: 0; padding-right: 25px; line-height: 1.8;">
+                <li style="margin-bottom: 10px;"><strong>جدولة ديناميكية:</strong> ترتبط مواعيد الصيانة بمعدل التشغيل اليومي للماكينة، وتتعدل المواعيد تلقائياً عند أي تغير في الساعات المسجلة.</li>
+                <li><strong>الاستعداد للصيانة:</strong> سيقوم فريقنا بالاستمرار في المتابعة والتواصل معكم قبل موعد الصيانة المستهدفة بوقت كافٍ لترتيب الزيارة وتجهيز قطع الغيار اللازمة.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- قالب الطباعة الجديد الخاص بالتقرير الشامل لجميع الماكينات -->
+<div id="pdf-comp-report-template" style="display: none;">
+    <div class="print-header" style="flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #006F8F; padding-bottom: 15px; margin-bottom: 25px;">
+        <img src="Only CATE.png" alt="CATE Logo" style="max-height: 100px; margin-bottom: 10px;">
+        <h1 style="color: #006F8F; font-size: 26px; margin: 10px 0 5px 0; font-weight: 800;">التقرير الفني الشامل للمعدات (Comprehensive Report)</h1>
+        <p style="margin: 5px 0 0 0; font-size: 28px; font-weight: 900; color: #8b0000;" id="print-comp-full-name"></p>
+        <p style="margin: 5px 0 0 0; font-size: 16px; color: #64748b;" id="print-comp-date"></p>
+    </div>
+
+    <!-- هنا سيتم حقن بيانات جميع الماكينات (كمبريسور، مجفف، فاكيوم) برمجياً -->
+    <div id="comp-report-body"></div>
+
+    <div class="print-box" style="margin-top: 30px;">
+        <div class="print-box-title" style="background: #10b981 !important;">
+            <i class="fa-solid fa-circle-info"></i> ملاحظة هامة
+        </div>
+        <div class="print-box-content" style="background: #f0fdf4 !important;">
+            <p style="margin: 0;">يتم تحديث مواعيد الصيانة للكمبريسورات ديناميكياً بناءً على الساعات الفعلية ومعدل التشغيل اليومي. أما المجففات (Dryers) وطلمبات التفريغ (Vacuum) فتتم صيانتها وفحصها خلال الزيارات الدورية المجدولة للعقد.</p>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

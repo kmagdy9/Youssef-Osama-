@@ -156,6 +156,11 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 10px rgba(0, 111, 143, 0.2); }
 .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
 .btn-success { background: var(--success); color: white; }
+
+/* Custom PDF Button */
+.btn-pdf { background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.2); border: none; }
+.btn-pdf:hover { background: #b91c1c; transform: translateY(-1px); }
+
 .action-btn { width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: 0.2s; }
 .action-btn:hover { transform: scale(1.1); }
 .btn-icon-wa { background: #dcfce7; color: #16a34a; text-decoration: none; }
@@ -163,6 +168,23 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .btn-icon-edit { background: #eff6ff; color: var(--primary); }
 .btn-icon-del { background: #fee2e2; color: #ef4444; }
 .btn-icon-pdf { background: #e0f2fe; color: #0284c7; } 
+/* --- تنسيقات أزرار صفحة الماكينات وتأثيرات الـ Hover --- */
+
+/* زر واتساب الشركة */
+.btn-wa-company { background: #25D366; color: white; border: none; transition: all 0.3s ease; }
+.btn-wa-company:hover { background: #1da851; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(37, 211, 102, 0.4); }
+
+/* زر تقرير شامل PDF */
+.btn-pdf-report { background: #ef4444; color: white; border: none; transition: all 0.3s ease; }
+.btn-pdf-report:hover { background: #dc2626; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4); }
+
+/* زر جرد قطع الغيار */
+.btn-inventory { background: #0284c7; color: white; border: none; transition: all 0.3s ease; }
+.btn-inventory:hover { background: #0369a1; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(2, 132, 199, 0.4); }
+
+/* زر ADD */
+.btn-primary-add { background: var(--primary); color: white; border: none; transition: all 0.3s ease; }
+.btn-primary-add:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 111, 143, 0.4); }
 
 /* CRM & Timeline */
 .crm-header { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; padding: 30px; border-radius: var(--radius); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(0, 111, 143, 0.2); position: relative; overflow: hidden; }
@@ -236,6 +258,9 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .asset-btn-edit:hover { background: var(--primary); color: white; }
 .asset-btn-del { background: #fee2e2; color: #ef4444; }
 .asset-btn-del:hover { background: #ef4444; color: white; }
+/* أضف هذا الكود الخاص بزر الـ PDF */
+.asset-btn-pdf { background: #fee2e2; color: #ef4444; }
+.asset-btn-pdf:hover { background: #ef4444; color: white; }
 
 /* Maintenance Plan Buttons */
 .plan-builder-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
@@ -394,69 +419,31 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
    RESPONSIVENESS & LAPTOP SCREENS FIXES (1024px to 1440px)
    ============================================================== */
 
-/* 1. منع النصوص من الخروج برا الحاويات (Break Word) */
-* {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
+* { word-wrap: break-word; overflow-wrap: break-word; }
+.modal-content { max-width: 95% !important; }
 
-/* 2. ضمان عدم خروج الـ Modals برا الشاشة في اللابتوبات الصغيرة */
-.modal-content {
-    max-width: 95% !important;
-}
-
-/* 3. إصلاحات شاشات اللابتوب المتوسطة (1366px و 1440px) */
 @media (max-width: 1440px) {
-    /* تصغير شريط البحث عشان ميزقش الأيقونات */
     .search-wrapper { width: 280px; }
-    
-    /* فك ضغط الإحصائيات وجعلها تحت بعضها إذا لزم الأمر */
     .dashboard-row-large { grid-template-columns: 1fr; }
     .dashboard-row-tri { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    
-    /* تظبيط مقاسات تقرير العميل */
     .crm-stats { gap: 20px; }
     .crm-stat-item h2 { font-size: 2rem; }
-    
-    /* فورم الجرد كانت 5 أعمدة، هنخليها عمودين عشان متخرجش برا الشاشة */
-    .asset-inv-form {
-        grid-template-columns: 1fr 1fr !important;
-        gap: 15px;
-    }
-    .asset-inv-form > div:last-child {
-        grid-column: span 2;
-    }
-    .asset-inv-form .btn {
-        width: 100%;
-    }
+    .asset-inv-form { grid-template-columns: 1fr 1fr !important; gap: 15px; }
+    .asset-inv-form > div:last-child { grid-column: span 2; }
+    .asset-inv-form .btn { width: 100%; }
 }
 
-/* 4. إصلاحات شاشات اللابتوب الصغيرة والتابلت (أقل من 1200px) */
 @media (max-width: 1200px) {
-    /* تصغير القائمة الجانبية قليلاً */
     .sidebar { width: 220px; padding: 20px 10px; }
     .search-wrapper { width: 220px; }
-    
-    /* جعل الحقول بجانب بعضها تنزل تحت بعضها (Forms) */
     .form-row { grid-template-columns: 1fr; }
-    
-    /* ترتيب بطاقات اختيار الماكينة */
     #machine-type-selection > div { grid-template-columns: 1fr 1fr !important; }
-    
-    /* الهيدر الخاص بتفاصيل العميل (CRM) */
     .crm-header { flex-direction: column; text-align: center; gap: 20px; }
     .crm-stats { justify-content: center; width: 100%; }
-    
-    /* قسم تسجيل الصيانة (الفورم يسار والتايم لاين يمين) نخليهم تحت بعض */
-    #report-action-section > div:nth-child(2) {
-        grid-template-columns: 1fr !important;
-    }
-    
-    /* إحصائيات الماكينة في المودال */
+    #report-action-section > div:nth-child(2) { grid-template-columns: 1fr !important; }
     .machine-stats-row { grid-template-columns: 1fr 1fr; }
 }
 
-/* 5. الشاشات الصغيرة جداً (أقل من 900px) */
 @media (max-width: 900px) {
     .machine-stats-row { grid-template-columns: 1fr; }
     #machine-type-selection > div { grid-template-columns: 1fr !important; }
@@ -464,17 +451,9 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
     .wa-btn.full-width { grid-column: span 1; }
 }
 
-/* 6. إصلاح الجداول (إجبارها على عمل Scroll أفقي بدلاً من تدمير الشاشة) */
-.table-responsive, .inv-container {
-    width: 100%;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-}
-table {
-    min-width: 800px; /* الحد الأدنى لعرض الجدول عشان الكلام ميتعصرش */
-}
+.table-responsive, .inv-container { width: 100%; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+table { min-width: 800px; }
 
-/* إخفاء لوجو الموبايل ومربع البحث الخاص به في الشاشات الكبيرة */
 .mobile-logo { display: none; }
 .mobile-search-bar { display: none; }
 
@@ -486,44 +465,36 @@ table {
 .sidebar-overlay.active { display: block; opacity: 1; }
 
 @media (max-width: 768px) {
-    /* Header & Navigation */
     header { position: relative; padding: 10px 15px; justify-content: space-between !important; align-items: center; }
     .mobile-logo { display: block; height: 55px; object-fit: contain; cursor: pointer; position: absolute; left: 50%; transform: translateX(-50%); z-index: 10; }
     .header-actions { margin-right: 0; } 
     .mobile-menu-btn { display: block; }
     .search-wrapper { display: none; } 
 
-    /* Mobile Search Bar inside Tabs */
     .mobile-search-bar { display: block; position: relative; margin-bottom: 15px; width: 100%; }
     .mobile-search-bar input { width: 100%; padding: 12px 40px 12px 15px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: inherit; }
     .mobile-search-bar i { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: var(--text-light); }
 
-    /* Sidebar (Sliding Menu for RTL) */
     .sidebar { position: fixed; right: -280px; top: 0; height: 100vh; transition: right 0.3s ease; box-shadow: none; z-index: 20; width: 260px; }
     .sidebar.active { right: 0; box-shadow: -5px 0 25px rgba(0,0,0,0.2); }
 
-    /* Content Layout */
     .content-scroll { padding: 15px; }
     .section-header { flex-direction: column; align-items: flex-start; gap: 15px; }
     .section-header > div:last-child, .section-header > div:first-child { width: 100%; display: flex; justify-content: space-between; align-items: center; }
 
-    /* Dashboard & Cards */
     .stats-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
     .stat-card { padding: 15px; }
     .stat-card h3 { font-size: 1.8rem; }
     .card-padding { padding: 15px; }
 
-    /* Modals & Forms */
     .modal-content { width: 95% !important; padding: 20px 15px; border-radius: 12px; margin: 10px; max-height: 90vh; }
     .form-row { grid-template-columns: 1fr !important; gap: 10px; }
     .form-group { margin-bottom: 12px; }
     
-    /* Machine Selection (Add Machine) */
     #machine-type-selection > div { grid-template-columns: 1fr !important; gap: 10px; }
     .type-card { padding: 15px; }
     .type-card i { font-size: 2rem; margin-bottom: 10px; }
 
-    /* CRM & Timeline */
     .crm-header { padding: 20px; text-align: center; }
     .crm-stats { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .crm-stat-item h2 { font-size: 1.5rem; }
@@ -531,130 +502,82 @@ table {
     .visit-header { flex-direction: column; align-items: flex-start; gap: 10px; }
     .visit-actions { width: 100%; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 10px; }
     
-    /* =========================================================
-       تصميم الـ Pro Cards لجدول العقود (للموبايل فقط)
-       ========================================================= */
     #main-table thead { display: none; }
     #main-table, #main-table tbody { display: block; width: 100%; }
     
     #main-table tr { 
-        display: grid; 
-        grid-template-columns: 1fr 1fr; /* بيقسم الكارت لعمودين */
-        gap: 12px; 
-        margin-bottom: 20px; 
-        background: white; 
-        border-radius: 16px; 
-        border: 1px solid var(--border-color); 
-        padding: 16px; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.06); 
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; 
+        background: white; border-radius: 16px; border: 1px solid var(--border-color); 
+        padding: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.06); 
     }
-    
-    #main-table td { 
-        display: block; 
-        border: none !important; 
-        padding: 0 !important; 
-        text-align: right !important; 
-        font-size: 0.95rem;
-    }
-    
-    /* إخفاء الليبلز القديمة */
+    #main-table td { display: block; border: none !important; padding: 0 !important; text-align: right !important; font-size: 0.95rem; }
     #main-table td::before { display: none; }
 
-    /* 1. الشركة / العميل (تأخذ العرض كله في أعلى الكارت) */
-    #main-table td:nth-child(1) { 
-        grid-column: 1 / -1; 
-        border-bottom: 1px dashed #cbd5e1 !important; 
-        padding-bottom: 12px !important; 
-        position: relative;
-    }
+    #main-table td:nth-child(1) { grid-column: 1 / -1; border-bottom: 1px dashed #cbd5e1 !important; padding-bottom: 12px !important; position: relative; }
     #main-table td:nth-child(1) .company-link { font-size: 1.15rem; color: var(--primary-dark); }
-    
-    /* تثبيت حالة العقد (الـ Badge) في أعلى يسار الكارت */
-    #main-table td:nth-child(1) .badge {
-        position: absolute;
-        left: 0;
-        top: 0;
-        font-size: 0.75rem !important;
-        padding: 5px 12px !important;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+    #main-table td:nth-child(1) .badge { position: absolute; left: 0; top: 0; font-size: 0.75rem !important; padding: 5px 12px !important; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-    /* 2. تاريخ البداية والنهاية (جنب بعض في مربعات منفصلة) */
-    #main-table td:nth-child(2), #main-table td:nth-child(3) {
-        background: #f8fafc;
-        padding: 12px !important;
-        border-radius: 10px;
-        text-align: center !important;
-        border: 1px solid #e2e8f0 !important;
-    }
+    #main-table td:nth-child(2), #main-table td:nth-child(3) { background: #f8fafc; padding: 12px !important; border-radius: 10px; text-align: center !important; border: 1px solid #e2e8f0 !important; }
     #main-table td:nth-child(2)::before { content: "بداية العقد"; display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 5px; font-weight: 800; }
     #main-table td:nth-child(3)::before { content: "نهاية العقد"; display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 5px; font-weight: 800; }
     #main-table td:nth-child(2) div, #main-table td:nth-child(3) div { color: var(--primary); font-size: 0.95rem; }
 
-    /* 3. نسبة الإنجاز (شريط العرض) */
-    #main-table td:nth-child(4) {
-        grid-column: 1 / -1;
-        padding-top: 5px !important;
-        padding-bottom: 5px !important;
-    }
-    #main-table td:nth-child(4)::before { 
-        content: "نسبة الإنجاز (الزيارات)"; 
-        display: block; 
-        font-size: 0.8rem; 
-        color: var(--text-light); 
-        font-weight: 800; 
-        margin-bottom: 10px; 
-    }
-    /* تعديل الإنجاز ليكون أفقياً بدلاً من رأسي للموبايل */
-    #main-table td:nth-child(4) > div { 
-        flex-direction: row !important; 
-        justify-content: space-between; 
-        align-items: center;
-        gap: 15px; 
-    }
+    #main-table td:nth-child(4) { grid-column: 1 / -1; padding-top: 5px !important; padding-bottom: 5px !important; }
+    #main-table td:nth-child(4)::before { content: "نسبة الإنجاز (الزيارات)"; display: block; font-size: 0.8rem; color: var(--text-light); font-weight: 800; margin-bottom: 10px; }
+    #main-table td:nth-child(4) > div { flex-direction: row !important; justify-content: space-between; align-items: center; gap: 15px; }
     #main-table td:nth-child(4) .progress-track { flex: 1; height: 8px; border-radius: 10px; background: #e2e8f0; }
     #main-table td:nth-child(4) .progress-fill { height: 100%; border-radius: 10px; }
 
-    /* 4. الإجراءات (الزراير) */
-    #main-table td:nth-child(5) {
-        grid-column: 1 / -1;
-        background: #f1f5f9;
-        padding: 12px !important;
-        border-radius: 12px;
-        margin-top: 5px;
-    }
-    #main-table .actions-grid { 
-        display: flex; 
-        flex-wrap: wrap; 
-        gap: 10px; 
-        width: 100%; 
-        justify-content: center; 
-    }
-    #main-table .actions-grid .action-btn { 
-        flex: 1; 
-        min-width: 45px; 
-        height: 40px; /* تكبير بسيط لتسهيل اللمس */
-        border-radius: 10px;
-        font-size: 1.1rem;
-    }
-    /* زر الحذف بيأخد مساحة لوحده في السطر اللي تحت كإجراء حماية */
+    #main-table td:nth-child(5) { grid-column: 1 / -1; background: #f1f5f9; padding: 12px !important; border-radius: 12px; margin-top: 5px; }
+    #main-table .actions-grid { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; justify-content: center; }
+    #main-table .actions-grid .action-btn { flex: 1; min-width: 45px; height: 40px; border-radius: 10px; font-size: 1.1rem; }
     #main-table .actions-grid .btn-icon-del { flex-basis: 100%; }
     
-    /* Maintenance Plan Buttons */
     .plan-builder-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
-    
-    /* Notifications Dropdown */
     .notif-dropdown { width: 300px; left: 15px; right: auto; top: 55px; }
 }
 
-
-/* حركة الأيقونة التحذيرية في رسالة التأكيد */
 @keyframes warning-pulse {
     0% { transform: scale(1); text-shadow: 0 0 0 rgba(245, 158, 11, 0); }
     50% { transform: scale(1.1); text-shadow: 0 5px 15px rgba(245, 158, 11, 0.4); }
     100% { transform: scale(1); text-shadow: 0 0 0 rgba(245, 158, 11, 0); }
 }
-.warning-anim {
-    animation: warning-pulse 1.5s infinite ease-in-out;
+.warning-anim { animation: warning-pulse 1.5s infinite ease-in-out; }
+
+.main-footer { text-align: center; padding: 15px 20px; background-color: var(--bg-card); border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem; margin-top: auto; z-index: 10; }
+.main-footer p { margin: 0; direction: ltr; display: inline-block; }
+.main-footer strong { color: var(--primary); }
+
+/* ==============================================================
+   PRINT PDF STYLES (Maintenance Report)
+   ============================================================== */
+   @media print {
+    @page { 
+        size: A4 portrait; /* يفضل أن يكون بالطول portrait للتقرير الشامل ليستوعب الجداول */
+        margin: 0; 
+    }
+    body { 
+        margin: 15mm; 
+    }
+    body * { visibility: hidden; }
+    
+    /* السماح للقالب القديم والجديد بالظهور وقت الطباعة */
+    #pdf-print-template, #pdf-print-template *,
+    #pdf-comp-report-template, #pdf-comp-report-template * { visibility: visible; }
+    
+    #pdf-print-template, #pdf-comp-report-template {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        direction: rtl;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    /* باقي الأكواد الخاصة بالطباعة تبقى كما هي */
+    .print-header { display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #006F8F; padding-bottom: 15px; margin-bottom: 25px; }
+    .print-header img { max-height: 100px; object-fit: contain; margin-bottom: 10px; }
+    /* ... الخ ... */
 }

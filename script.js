@@ -28,7 +28,14 @@ const MAINT_TASKS = {
         title: 'صيانة 2000 ساعة:', 
         tasks: [
             'تم تغيير فلتر هواء', 
-            'تم تغيير فلتر زيت'
+            'تم تغيير فلتر زيت', 
+            'تم تغيير فاصل الزيت', 
+            'تم تغيير الزيت', 
+            'تم تغيير (Thermostatic valve)', 
+            'تم تغيير (Minimum pressure valve kit)', 
+            'تم تغيير (Un loader valve kit)', 
+            'تم تغيير (Check valve kit)', 
+            'تم تغيير (Automatic drain kit)'
         ] 
     },
     '4000': { 
@@ -37,7 +44,12 @@ const MAINT_TASKS = {
             'تم تغيير فلتر هواء', 
             'تم تغيير فلتر زيت', 
             'تم تغيير فاصل الزيت', 
-            'تم تغيير الزيت'
+            'تم تغيير الزيت', 
+            'تم تغيير (Thermostatic valve)', 
+            'تم تغيير (Minimum pressure valve kit)', 
+            'تم تغيير (Un loader valve kit)', 
+            'تم تغيير (Check valve kit)', 
+            'تم تغيير (Automatic drain kit)'
         ] 
     },
     '8000-GA': { 
@@ -61,9 +73,11 @@ const MAINT_TASKS = {
             'تم تغيير فلتر زيت', 
             'تم تغيير فاصل الزيت', 
             'تم تغيير الزيت', 
-            'تم تغيير (Automatic drain kit)', 
             'تم تغيير (Thermostatic valve)', 
-            'تم تغيير (minimum pressure valve kit)'
+            'تم تغيير (Minimum pressure valve kit)', 
+            'تم تغيير (Un loader valve kit)', 
+            'تم تغيير (Check valve kit)', 
+            'تم تغيير (Automatic drain kit)'
         ] 
     },
     'DRYER-DRAIN': { 
@@ -741,7 +755,14 @@ function openCompanyAssets(id) {
     currentAssetContractId = id;
     const c = contracts.find(x => x.id === id);
     if (!c) return;
+    
+    // تحديث اسم الشركة في العنوان الرئيسي
     document.getElementById('asset-company-title').innerText = c.company;
+    
+    // تحديث اسم الشركة داخل زرار الواتساب الجديد
+    const waBtnText = document.getElementById('wa-company-name');
+    if(waBtnText) waBtnText.innerText = c.company;
+    
     renderAssetsGrid(c.assets || []);
     switchTab('company-assets');
 }
@@ -787,9 +808,10 @@ function renderAssetsGrid(assets) {
             let nextColor = "#cbd5e1";
             
             if (asset.isPlanHold || !asset.maintenancePlan || asset.maintenancePlan.length === 0) {
-                nextMaintText = "⚠️ معلق (بانتظار تحديد خطة)";
+                // تم إضافة span مع كلاس الحركة و display:inline-block لتفعيل تأثير الـ transform
+                nextMaintText = "<span class='warning-anim' style='display: inline-block; margin-left: 5px;'>⚠️ معلق (بانتظار تحديد خطة)</span> ";
                 nextColor = "#d97706";
-            } 
+            }
             else if (asset.maintenancePlan && asset.maintenancePlan.length > (asset.nextMaintenanceIndex || 0)) {
                 const nextStepChar = asset.maintenancePlan[asset.nextMaintenanceIndex || 0];
                 nextMaintText = `القادمة: ${getMaintenanceLabel(nextStepChar)}`;
@@ -810,8 +832,7 @@ function renderAssetsGrid(assets) {
         container.innerHTML += `
             <div class="asset-card" ${clickAction} style="${cursorStyle}">
                 <div class="asset-actions-overlay">
-                    <button class="asset-btn asset-btn-wa" onclick="event.stopPropagation(); openAssetWAModal(${index})" title="مراسلة عبر واتساب"><i class="fa-brands fa-whatsapp"></i></button>
-                    <button class="asset-btn asset-btn-edit" onclick="event.stopPropagation(); editAsset(${index})" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                <button class="asset-btn asset-btn-pdf" onclick="event.stopPropagation(); printSingleAssetPDF(${index})" title="طباعة تقرير الماكينة (سجل الصيانة)"><i class="fa-solid fa-file-pdf"></i></button>                    <button class="asset-btn asset-btn-edit" onclick="event.stopPropagation(); editAsset(${index})" title="تعديل"><i class="fa-solid fa-pen"></i></button>
                     <button class="asset-btn asset-btn-del" onclick="event.stopPropagation(); deleteAsset(${index})" title="حذف"><i class="fa-solid fa-trash"></i></button>
                 </div>
                 <div class="asset-icon ${bgClass}"><i class="fa-solid ${iconClass}"></i></div>
@@ -1536,6 +1557,7 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
             maintenancePlan: [...currentMaintenancePlan], 
             nextMaintenanceIndex: nextMaintIdx,
             completedStepsHours: completedSteps,
+            completedStepsDates: [], 
             lastUpdated: lastUpdatedDate,
             isPlanHold: false 
         };
@@ -1543,6 +1565,11 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
         if (!contracts[idx].assets) contracts[idx].assets = [];
         
         if (editingAssetIndex !== null) {
+            // Keep old dates if they exist when editing
+            const existingAsset = contracts[idx].assets[editingAssetIndex];
+            if (existingAsset && existingAsset.completedStepsDates) {
+                compData.completedStepsDates = [...existingAsset.completedStepsDates];
+            }
             contracts[idx].assets[editingAssetIndex] = {
                 ...contracts[idx].assets[editingAssetIndex],
                 ...compData
@@ -1620,11 +1647,52 @@ function formatPhone(p) { let n = p.replace(/\D/g, ''); if(n.startsWith('01')) n
 // --- 15. ADDITIONAL HANDLERS ---
 function openModal() { form.reset(); document.getElementById('editId').value = ''; document.getElementById('contract-file-preview').innerText = ''; modal.style.display = 'flex'; }
 function closeModal() { modal.style.display = 'none'; }
-function editContract(id) { 
-    const c = contracts.find(x=>x.id===id); document.getElementById('editId').value = c.id; document.getElementById('company').value = c.company; document.getElementById('client').value = c.client; document.getElementById('phone').value = c.phone; document.getElementById('startDate').value = c.startDate; document.getElementById('endDate').value = c.endDate; document.getElementById('totalVisits').value = c.totalVisits; document.getElementById('contract-file-preview').innerText = (c.contractPDF) ? `يوجد ملف` : ''; modal.style.display = 'flex'; 
+function editContract(id) {
+    const c = contracts.find(x=>x.id===id);
+    
+    // تفريغ الفورم لضمان إزالة أي ملف قديم معلق في الـ Input
+    document.getElementById('contractForm').reset(); 
+    
+    document.getElementById('editId').value = c.id;
+    document.getElementById('company').value = c.company;
+    document.getElementById('client').value = c.client;
+    document.getElementById('phone').value = c.phone;
+    document.getElementById('startDate').value = c.startDate;
+    document.getElementById('endDate').value = c.endDate;
+    document.getElementById('totalVisits').value = c.totalVisits;
+    document.getElementById('contract-file-preview').innerText = (c.contractPDF) ? `يوجد ملف` : '';
+    modal.style.display = 'flex';
 }
 function deleteContract(id) { if(confirm('حذف؟')) { contracts = contracts.filter(x => x.id !== id); saveData(); renderAll(); } }
-function openContractPDF(id) { const c = contracts.find(x => x.id === id); if (c && c.contractPDF) { const win = window.open(); win.document.write('<iframe src="' + c.contractPDF + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>'); } else { showToast("لا يوجد ملف", "error"); } }
+function openContractPDF(id) {
+    const c = contracts.find(x => x.id === id);
+    if (c && c.contractPDF) {
+        try {
+            // فصل البيانات عن الهيدر الخاص بالـ Base64
+            const base64Data = c.contractPDF.split(',')[1];
+            
+            // تحويل النص إلى بايتات
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            
+            // إنشاء ملف حقيقي (Blob) في الذاكرة الوهمية للمتصفح
+            const blob = new Blob([byteArray], {type: 'application/pdf'});
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // فتح الملف بأمان في نافذة جديدة
+            window.open(blobUrl, '_blank');
+        } catch (error) {
+            console.error("Error opening PDF:", error);
+            showToast("حدث خطأ أثناء قراءة وعرض الملف", "error");
+        }
+    } else {
+        showToast("لا يوجد ملف", "error");
+    }
+}
 function showContractFilePreview(input) { document.getElementById('contract-file-preview').innerText = input.files[0] ? input.files[0].name : ''; }
 
 
@@ -1889,6 +1957,7 @@ function updateNotifications() {
     contracts.forEach(c => {
         if(c.isHold) return;
 
+        // --- 1. إشعارات انتهاء العقد ---
         if(c.endDate) {
             const end = new Date(c.endDate);
             const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
@@ -1916,46 +1985,192 @@ function updateNotifications() {
             }
         }
 
+        // --- 2. إشعارات موقف الزيارات (متبقي زيارة / ركود) ---
+        if (c.totalVisits > 0) {
+            // أ. متبقي زيارة واحدة
+            if (c.totalVisits - c.visitsDone === 1) {
+                count++;
+                notifList.innerHTML += `
+                    <div class="notif-item priority-medium" onclick="goToContract(${c.id})">
+                        <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                        </div>
+                        <div class="notif-content" style="flex:1;">
+                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7; font-size:0.9rem;">تجهيز للتجديد:</b> متبقي زيارة واحدة لانتهاء العقد</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                    </div>`;
+            }
+
+            // ب. ركود العقد (لم تتم أي زيارة من 3 شهور = 90 يوم)
+            let lastVisitDateObj = c.startDate ? new Date(c.startDate) : today;
+            if (c.history && c.history.length > 0) {
+                const sortedHistory = [...c.history].sort((a,b) => new Date(b.date) - new Date(a.date));
+                lastVisitDateObj = new Date(sortedHistory[0].date);
+            }
+            const daysSinceLastVisit = Math.floor((today - lastVisitDateObj) / (1000 * 60 * 60 * 24));
+            
+            if (daysSinceLastVisit >= 90 && c.visitsDone < c.totalVisits) {
+                count++;
+                notifList.innerHTML += `
+                    <div class="notif-item priority-medium" onclick="goToContract(${c.id})">
+                        <div class="notif-icon-box" style="background:#ffedd5; color:#ea580c">
+                            <i class="fa-solid fa-bed"></i>
+                        </div>
+                        <div class="notif-content" style="flex:1;">
+                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#ea580c; font-size:0.9rem;">ركود:</b> لم تتم أي زيارة منذ ${daysSinceLastVisit} يوم!</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                    </div>`;
+            }
+        }
+
+        // --- 3. إشعارات نواقص المخزن (Inventory) ---
+        if (c.inventory && c.inventory.length > 0) {
+            c.inventory.forEach(p => {
+                if (p.qty <= 1) {
+                    count++;
+                    let isDanger = p.qty === 0;
+                    let msg = isDanger ? `🚨 نفد رصيد (${p.name}) من المخزن` : `⚠️ اقترب نفاذ رصيد (${p.name}) المتبقي: 1`;
+                    let color = isDanger ? '#ef4444' : '#d97706';
+                    let bg = isDanger ? '#fee2e2' : '#fef3c7';
+                    let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
+
+                    notifList.innerHTML += `
+                        <div class="notif-item ${priorityClass}" onclick="goToContract(${c.id})">
+                            <div class="notif-icon-box" style="background:${bg}; color:${color}">
+                                <i class="fa-solid fa-box-open"></i>
+                            </div>
+                            <div class="notif-content" style="flex:1;">
+                                <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">نواقص:</b> ${msg}</p>
+                            </div>
+                            <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                        </div>`;
+                }
+            });
+        }
+
+        // --- 4. إشعارات الماكينات والمعدات ---
         if(c.assets) {
             c.assets.forEach((a, aIdx) => {
-                if(a.type === 'compressor' && a.maintenancePlan) {
-                    let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
-                    let nextIdx = a.nextMaintenanceIndex || 0;
-                    
-                    if (nextIdx < a.maintenancePlan.length) {
-                        const target = base + 2000;
-                        const remaining = target - a.currentHours;
+                if(a.type === 'compressor') {
+                    // أ. الماكينات المعلقة
+                    if (a.isPlanHold || !a.maintenancePlan || a.maintenancePlan.length === 0) {
+                        count++;
+                        notifList.innerHTML += `
+                            <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
+                                <div class="notif-icon-box warning-anim" style="background:#fef3c7; color:#d97706">
+                                    <i class="fa-solid fa-circle-pause"></i>
+                                </div>
+                                <div class="notif-content" style="flex:1;">
+                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#d97706; font-size:0.9rem;">${a.name}</b>: ⚠️ معلق (بانتظار تحديد خطة)</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                            </div>`;
+                    } 
+                    else {
+                        // ب. خطة الصيانة ومواعيد الاستحقاق
+                        let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                        let nextIdx = a.nextMaintenanceIndex || 0;
                         
-                        if(remaining <= 50) {
-                            count++;
-                            let isDanger = remaining <= 0;
+                        if (nextIdx < a.maintenancePlan.length) {
+                            const target = base + 2000;
+                            const remaining = target - a.currentHours;
+                            
+                            if(remaining <= 50) {
+                                count++;
+                                let isDanger = remaining <= 0;
+                                let maintName = "الصيانة الدورية";
+                                if (target > 0 && target % 24000 === 0) maintName = `صيانة الـ ${target} ساعة (عمرة كاملة)`;
+                                else if (target > 0 && target % 16000 === 0) maintName = `صيانة الـ ${target} ساعة`;
 
-                            let maintName = "الصيانة الدورية";
-                            if (target > 0 && target % 24000 === 0) {
-                                maintName = `صيانة الـ ${target} ساعة (عمرة كاملة)`;
-                            } else if (target > 0 && target % 16000 === 0) {
-                                maintName = `صيانة الـ ${target} ساعة`;
+                                let msg = isDanger ? `⚠️ ${maintName} مستحقة فوراً` : `باقي ${remaining} ساعة على ${maintName}`;
+                                let color = isDanger ? '#ef4444' : '#059669';
+                                let bg = isDanger ? '#fee2e2' : '#d1fae5';
+                                let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
+
+                                notifList.innerHTML += `
+                                    <div class="notif-item ${priorityClass}" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
+                                        <div class="notif-icon-box" style="background:${bg}; color:${color}">
+                                            <i class="fa-solid fa-screwdriver-wrench"></i>
+                                        </div>
+                                        <div class="notif-content" style="flex:1;">
+                                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ${msg}</p>
+                                        </div>
+                                        <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                                    </div>`;
                             }
-
-                            let msg = isDanger ? `⚠️ ${maintName} مستحقة فوراً (تجاوزت الموعد)` : `باقي ${remaining} ساعة على ${maintName}`;
-
-                            let color = isDanger ? '#ef4444' : '#059669';
-                            let bg = isDanger ? '#fee2e2' : '#d1fae5';
-                            let icon = 'fa-screwdriver-wrench';
-                            let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
-
+                        } 
+                        // --- التعديل الجديد: إشعار عند انتهاء الخطة بالكامل ---
+                        else if (nextIdx >= a.maintenancePlan.length && a.maintenancePlan.length > 0 && !a.isPlanHold) {
+                            count++;
                             notifList.innerHTML += `
-                                <div class="notif-item ${priorityClass}" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                    <div class="notif-icon-box" style="background:${bg}; color:${color}">
-                                        <i class="fa-solid ${icon}"></i>
+                                <div class="notif-item priority-high" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
+                                    <div class="notif-icon-box warning-anim" style="background:#fee2e2; color:#ef4444">
+                                        <i class="fa-solid fa-calendar-plus"></i>
                                     </div>
                                     <div class="notif-content" style="flex:1;">
                                         <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                        <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ${msg}</p>
+                                        <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#ef4444; font-size:0.9rem;">${a.name}</b>: 🚨 الخطة انتهت! يرجى إضافة خطة جديدة أو تعليق الماكينة.</p>
                                     </div>
                                     <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                                 </div>`;
                         }
+                    }
+
+                    // ج. إشعار تحديث قراءة العداد (Odometer Update) إذا مر 60 يوم
+                    let lastUpdatedDate = a.lastUpdated ? new Date(a.lastUpdated) : (a.startDate ? new Date(a.startDate) : today);
+                    const daysSinceUpdate = Math.floor((today - lastUpdatedDate) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysSinceUpdate >= 60) {
+                        count++;
+                        notifList.innerHTML += `
+                            <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
+                                <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7">
+                                    <i class="fa-solid fa-gauge-high"></i>
+                                </div>
+                                <div class="notif-content" style="flex:1;">
+                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7; font-size:0.9rem;">${a.name}</b>: 📞 تحديث العداد مطلوب (مر ${daysSinceUpdate} يوم)</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                            </div>`;
+                    }
+
+                } 
+                else if (a.type === 'dryer' || a.type === 'vacuum') {
+                    // د. إشعارات المجففات والفاكيوم (الزمنية) - تنبيه بعد 180 يوم (6 شهور) من آخر زيارة
+                    let lastAssetVisitDate = c.startDate ? new Date(c.startDate) : today;
+                    if (c.history && c.history.length > 0) {
+                        const assetHistory = c.history.filter(h => h.assetIndex == aIdx).sort((a,b) => new Date(b.date) - new Date(a.date));
+                        if (assetHistory.length > 0) {
+                            lastAssetVisitDate = new Date(assetHistory[0].date);
+                        }
+                    }
+                    const daysSinceAssetVisit = Math.floor((today - lastAssetVisitDate) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysSinceAssetVisit >= 180) {
+                        count++;
+                        let iconClass = a.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-fan';
+                        let color = a.type === 'dryer' ? '#ea580c' : '#7c3aed';
+                        let bg = a.type === 'dryer' ? '#ffedd5' : '#f3e8ff';
+
+                        notifList.innerHTML += `
+                            <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
+                                <div class="notif-icon-box" style="background:${bg}; color:${color}">
+                                    <i class="fa-solid ${iconClass}"></i>
+                                </div>
+                                <div class="notif-content" style="flex:1;">
+                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
+                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ⏳ حان موعد الفحص الدوري (مر ${daysSinceAssetVisit} يوم)</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
+                            </div>`;
                     }
                 }
             });
@@ -2479,6 +2694,19 @@ function renderDetailedTimeline(asset, assetIndex) {
             </div>
         </div>`;
     });
+
+    // --- التعديل الجديد: عرض زر الإجراء (خطة جديدة/تعليق) عند انتهاء الخطة بالكامل ---
+    if (nextIdx >= asset.maintenancePlan.length && asset.maintenancePlan.length > 0 && !asset.isPlanHold) {
+        container.innerHTML += `
+        <div style="text-align:center; padding:20px; background: #fef2f2; border: 1px dashed #ef4444; border-radius: 12px; margin-top: 20px; animation: fadeInUp 0.5s ease forwards;">
+            <i class="fa-solid fa-triangle-exclamation warning-anim" style="font-size:2.5rem; color:#ef4444; margin-bottom:10px;"></i>
+            <p style="margin-bottom:15px; font-weight:bold; color:#b91c1c; font-size: 1.1rem;">تم الانتهاء من جميع صيانات هذه الخطة!</p>
+            <p style="margin-bottom:15px; font-size:0.9rem; color:#ef4444;">يجب تحديد خطة صيانة جديدة لاستمرار المتابعة، أو تعليق الماكينة إذا كانت متوقفة.</p>
+            <button class="btn btn-primary" onclick="closeMachineDetailsModal(); openRenewPlanModal(${currentAssetContractId}, ${assetIndex})" style="background: #ef4444; border: none; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);">
+                <i class="fa-solid fa-pen-to-square"></i> اتخاذ إجراء (خطة جديدة / تعليق مؤقت)
+            </button>
+        </div>`;
+    }
 }
 
 // دالة عرض Modal إتمام الصيانة
@@ -2532,13 +2760,16 @@ window.executeMaintenanceDone = function() {
     let currentNextIdx = asset.nextMaintenanceIndex || 0;
 
     if (!asset.completedStepsHours) asset.completedStepsHours = [];
-    
+    if (!asset.completedStepsDates) asset.completedStepsDates = []; // NEW ARRAY
+
     if (stepIdx > currentNextIdx) {
         const completedStepChar = asset.maintenancePlan.splice(stepIdx, 1)[0];
         asset.maintenancePlan.splice(currentNextIdx, 0, completedStepChar);
     }
     
     asset.completedStepsHours[currentNextIdx] = hours;
+    asset.completedStepsDates[currentNextIdx] = exactDateStr; // SAVE EXACT DATE
+    
     asset.planBaseHours = hours; 
     asset.currentHours = Math.max(asset.currentHours, hours); 
     asset.nextMaintenanceIndex = currentNextIdx + 1; 
@@ -2653,18 +2884,26 @@ window.holdMachinePlan = function() {
     asset.maintenancePlan = [];
     asset.nextMaintenanceIndex = 0;
     asset.completedStepsHours = [];
+    asset.completedStepsDates = [];
     asset.isPlanHold = true; 
     
     saveData();
     renderAll();
+
+    // حفظ قيم العقد والماكينة قبل إغلاق النافذة وتصفير المتغيرات العامة
+    const currentContractId = renewContractId;
+    const currentAssetIndex = renewAssetIndex;
+
     closeRenewPlanModal();
     showToast("تم تعليق الماكينة (بانتظار العميل)", "success");
     
     setTimeout(() => {
-        triggerReportRedirect(renewContractId, renewAssetIndex);
+        // استخدام المتغيرات المحفوظة بدلاً من المتغيرات العامة التي أصبحت null
+        triggerReportRedirect(currentContractId, currentAssetIndex);
     }, 500);
 };
 
+// --- دالة حفظ الخطة الجديدة ---
 window.saveRenewedPlan = function() {
     if(renewPlanArray.length === 0) {
         alert('من فضلك قم بإضافة خطوة واحدة على الأقل للخطة.');
@@ -2677,6 +2916,7 @@ window.saveRenewedPlan = function() {
     asset.maintenancePlan = [...renewPlanArray];
     asset.nextMaintenanceIndex = 0;
     asset.completedStepsHours = [];
+    asset.completedStepsDates = [];
     asset.isPlanHold = false; // فك التعليق لو كانت معلقة
     
     if (asset.subType && asset.subType.includes('Used')) {
@@ -2685,11 +2925,17 @@ window.saveRenewedPlan = function() {
     
     saveData();
     renderAll();
+
+    // حفظ قيم العقد والماكينة قبل إغلاق النافذة وتصفير المتغيرات العامة
+    const currentContractId = renewContractId;
+    const currentAssetIndex = renewAssetIndex;
+
     closeRenewPlanModal();
     showToast("تم تجديد خطة الصيانة بنجاح!");
     
     setTimeout(() => {
-        triggerReportRedirect(renewContractId, renewAssetIndex);
+        // استخدام المتغيرات المحفوظة بدلاً من المتغيرات العامة التي أصبحت null
+        triggerReportRedirect(currentContractId, currentAssetIndex);
     }, 500);
 }
 
@@ -2728,16 +2974,31 @@ window.autoFillMaintenance = function(stepChar) {
 
 let modalCloseCallback = null;
 
-window.showCloseConfirm = function(callback) {
+// دالة جديدة ديناميكية للـ Pop-up تقبل أي عنوان ونص
+window.showCustomConfirm = function(title, message, btnText, callback) {
     modalCloseCallback = callback;
-    document.getElementById('customConfirmModal').style.display = 'flex';
+    const modal = document.getElementById('customConfirmModal');
+    // تغيير النصوص داخل الـ Modal بناءً على المدخلات
+    modal.querySelector('h3').innerText = title;
+    modal.querySelector('p').innerText = message;
+    modal.querySelector('#confirmYesBtn').innerHTML = `<i class="fa-solid fa-check"></i> ${btnText}`;
+    modal.style.display = 'flex';
+};
+
+// الدالة القديمة الخاصة بقفل النوافذ (تم ربطها بالدالة الديناميكية عشان متأثرش على شغلك القديم)
+window.showCloseConfirm = function(callback) {
+    window.showCustomConfirm(
+        "هل أنت متأكد من الإغلاق؟",
+        "لم يتم حفظ البيانات، وقد تفقدها إذا قمت بالإغلاق الآن.",
+        "نعم، أغلق",
+        callback
+    );
 };
 
 window.closeConfirmModal = function() {
     document.getElementById('customConfirmModal').style.display = 'none';
     modalCloseCallback = null;
 };
-
 const originalOnClick = window.onclick;
 window.onclick = function(e) { 
     if (typeof originalOnClick === 'function') originalOnClick(e);
@@ -2798,15 +3059,18 @@ window.importBackup = function(event) {
             const importedData = JSON.parse(e.target.result);
             
             if (Array.isArray(importedData)) {
-                if (confirm("⚠️ تحذير: استرجاع البيانات سيقوم بمسح كافة البيانات الحالية واستبدالها بالنسخة الاحتياطية. هل أنت متأكد من الاستمرار؟")) {
-                    
-                    contracts = importedData;
-                    
-                    saveData();
-                    renderAll();
-                    
-                    showToast("تم استرجاع البيانات بنجاح!");
-                }
+                // استخدام الـ Pop-up الاحترافي الخاص بالنظام
+                window.showCustomConfirm(
+                    "تحذير هام جداً", 
+                    "استرجاع البيانات سيقوم بمسح كافة البيانات الحالية واستبدالها بالنسخة الاحتياطية. هل أنت متأكد من الاستمرار؟", 
+                    "نعم، استرجع البيانات",
+                    function() {
+                        contracts = importedData;
+                        saveData();
+                        renderAll();
+                        showToast("تم استرجاع البيانات بنجاح!");
+                    }
+                );
             } else {
                 showToast("ملف النسخة الاحتياطية غير صالح للمنظومة", "error");
             }
@@ -2815,8 +3079,491 @@ window.importBackup = function(event) {
             showToast("حدث خطأ أثناء قراءة الملف، تأكد من أنه ملف JSON صحيح", "error");
         }
         
+        // تصفير الـ input عشان لو حبيت ترفع نفس الملف تاني
         event.target.value = '';
     };
     
     reader.readAsText(file);
+};
+// --- PRINT PDF REPORT FUNCTION ---
+window.printAssetReport = function() {
+    const cIdStr = document.getElementById('reportContractId').value;
+    const aIdxStr = document.getElementById('reportAssetIndex').value;
+    if(!cIdStr || aIdxStr === '') {
+        showToast('برجاء اختيار الماكينة أولاً', 'error');
+        return;
+    }
+    
+    const cId = parseInt(cIdStr);
+    const aIdx = parseInt(aIdxStr);
+    
+    const contract = contracts.find(x => x.id === cId);
+    if(!contract || !contract.assets || !contract.assets[aIdx]) return;
+    
+    const asset = contract.assets[aIdx];
+    
+    // إخفاء ال template أثناء ملء البيانات لمنع الوميض
+    const printTemplate = document.getElementById('pdf-print-template');
+    printTemplate.style.display = 'block';
+    
+    // Fill Data
+    document.getElementById('print-comp-name').innerText = contract.company;
+    document.getElementById('print-asset-model').innerText = asset.name || 'غير محدد';
+    document.getElementById('print-asset-serial').innerText = asset.serial || 'غير محدد';
+    document.getElementById('print-asset-year').innerText = asset.year || 'غير محدد';
+    document.getElementById('print-asset-hours').innerText = (asset.currentHours || 0) + ' ساعة';
+    document.getElementById('print-asset-rate').innerText = (asset.dailyHours || contract.dailyHours || 0) + ' ساعة/يوم';
+    
+    // Maintenance Logic
+    let nextIdx = asset.nextMaintenanceIndex || 0;
+    let lastCompletedStr = '<div style="color:var(--text-light); font-size:0.95rem;">لا يوجد صيانة سابقة مسجلة</div>';
+    let lastCompletedStatus = '';
+    let nextScheduledStr = '<div style="color:var(--text-light); font-size:0.95rem;">لا توجد صيانة مجدولة</div>';
+    let nextScheduledStatus = '';
+    
+    if (asset.maintenancePlan && asset.maintenancePlan.length > 0) {
+        // Last Completed
+        if (nextIdx > 0) {
+            let lastChar = asset.maintenancePlan[nextIdx - 1];
+            let lastHours = asset.completedStepsHours ? asset.completedStepsHours[nextIdx - 1] : (asset.planBaseHours || 0);
+            let lastDate = (asset.completedStepsDates && asset.completedStepsDates[nextIdx - 1]) ? asset.completedStepsDates[nextIdx - 1] : (asset.lastUpdated || getLocalDateString());
+            let label = getMaintenanceLabel(lastChar);
+            lastCompletedStr = `<div style="font-weight:bold; font-size:1.15rem; margin-bottom:5px;">الصيانة المنجزة: ${label}</div><div style="font-size:1rem; color:#475569;">عند: ${lastHours} ساعة</div>`;
+            lastCompletedStatus = `<span class="status-badge status-done"><i class="fa-solid fa-check"></i> مكتملة (${lastDate})</span>`;
+        } else {
+            lastCompletedStr = '<div style="color:var(--text-light); font-size:0.95rem;">لم يتم إتمام أي صيانة بعد</div>';
+        }
+        
+        // Next Scheduled
+        if (nextIdx < asset.maintenancePlan.length) {
+            let nextChar = asset.maintenancePlan[nextIdx];
+            let base = asset.planBaseHours !== undefined ? asset.planBaseHours : (asset.subType !== 'New' ? asset.currentHours : 0);
+            let targetHours = base + 2000;
+            let label = getMaintenanceLabel(nextChar);
+            
+            let currentHours = asset.currentHours || 0;
+            let dailyHours = asset.dailyHours || contract.dailyHours || 0;
+            let daysOff = asset.daysOff || contract.daysOff || 0;
+            
+            let dateDisplay = 'غير محدد';
+            let hoursRemaining = targetHours - currentHours;
+            
+            if (hoursRemaining <= 0) {
+                 dateDisplay = 'مستحقة فوراً';
+            } else if (dailyHours > 0) {
+                if (asset.subType && asset.subType.includes('Used')) {
+                    const targetAddedHours = targetHours - base;
+                    const dateCalc = calculateUsedCompressorDate(asset.startDate, dailyHours, daysOff, targetAddedHours);
+                    dateDisplay = dateCalc.str;
+                } else {
+                    let calcBaseDate = new Date();
+                    if (asset.lastUpdated) calcBaseDate = new Date(asset.lastUpdated);
+                    else if (asset.currentHours === 0 && asset.startDate) calcBaseDate = new Date(asset.startDate);
+                    const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                    dateDisplay = calc.str;
+                }
+            }
+            
+            nextScheduledStr = `<div style="font-weight:bold; font-size:1.15rem; margin-bottom:5px;">الصيانة القادمة: ${label}</div><div style="font-size:1rem; color:#475569;">عند: ${targetHours} ساعة</div>`;
+            nextScheduledStatus = `<span class="status-badge status-pending"><i class="fa-regular fa-clock"></i> مجدولة (${dateDisplay})</span>`;
+        } else {
+             nextScheduledStr = '<div style="color:var(--text-light); font-size:0.95rem;">تم الانتهاء من الخطة الحالية</div>';
+        }
+    }
+    
+    document.getElementById('print-last-maint').innerHTML = lastCompletedStr;
+    document.getElementById('print-last-status').innerHTML = lastCompletedStatus;
+    document.getElementById('print-next-maint').innerHTML = nextScheduledStr;
+    document.getElementById('print-next-status').innerHTML = nextScheduledStatus;
+    
+    // --- سحب المهام وقطع الغيار الحالية للطباعة ---
+    let currentNotes = document.getElementById('visitNotes').value;
+    if (!currentNotes || currentNotes.trim() === '') {
+        currentNotes = "تم إجراء الفحص ولم يتم تسجيل تفاصيل إضافية.";
+    }
+
+    let deductedPartsText = "";
+    const checkedBoxes = document.querySelectorAll('.vic-checkbox:checked');
+    checkedBoxes.forEach(chk => {
+        const partId = chk.value;
+        const input = document.getElementById(`vic-input-${partId}`);
+        const qtyToDeduct = parseInt(input.value) || 0;
+        const partName = input.getAttribute('data-name');
+        if (qtyToDeduct > 0) {
+            deductedPartsText += `<li style="margin-bottom: 5px; font-weight:bold; color:#0f172a;">تم سحب عدد (${qtyToDeduct}) ${partName}</li>`;
+        }
+    });
+
+    let oilText = "";
+    const oilOption = document.querySelector('input[name="oilFilterOption"]:checked');
+    if (oilOption) { 
+        if (oilOption.value === '1') oilText = "<li style='margin-bottom: 5px; font-weight:bold; color:#0f172a;'>تم تغيير فلتر زيت (1)</li>"; 
+        else if (oilOption.value === '2') oilText = "<li style='margin-bottom: 5px; font-weight:bold; color:#0f172a;'>تم تغيير عدد 2 فلتر زيت</li>"; 
+    }
+
+    let extraPartsText = "";
+    const extraParts = document.querySelectorAll('input[name="extraParts"]:checked');
+    if (extraParts.length > 0) {
+        extraParts.forEach(part => {
+            extraPartsText += `<li style="margin-bottom: 5px; font-weight:bold; color:#0f172a;">${part.value}</li>`;
+        });
+    }
+
+    let reportHtml = `<div style="white-space: pre-line; font-size: 1.1rem; color: #1e293b;"><strong>الأعمال المنفذة والملاحظات:</strong><br><br>${currentNotes}</div>`;
+    
+    if (deductedPartsText !== "" || oilText !== "" || extraPartsText !== "") {
+        reportHtml += `<div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #cbd5e1;">
+                        <strong style="color: #ef4444; font-size:1.1rem;"><i class="fa-solid fa-boxes-stacked"></i> قطع الغيار المستهلكة في هذه الزيارة:</strong>
+                        <ul style="margin-top: 10px; padding-right: 20px; color: #334155;">
+                            ${oilText}${extraPartsText}${deductedPartsText}
+                        </ul>
+                       </div>`;
+    }
+
+    let printCurrentVisitDiv = document.getElementById('print-current-visit');
+    if(printCurrentVisitDiv) {
+        printCurrentVisitDiv.innerHTML = reportHtml;
+    }
+
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+            printTemplate.style.display = 'none';
+        }, 500);
+    }, 100);
+};
+
+// --- PRINT FULL COMPREHENSIVE PDF REPORT FUNCTION ---
+window.printFullContractPDF = function() {
+    if(!currentAssetContractId) {
+        showToast('برجاء الدخول على شركة أولاً', 'error');
+        return;
+    }
+
+    const c = contracts.find(x => x.id === currentAssetContractId);
+    
+    if(!c || !c.assets || c.assets.length === 0) {
+        showToast("لا توجد ماكينات مسجلة في هذا العقد لطباعة التقرير.", "error");
+        return;
+    }
+
+    const printTemplate = document.getElementById('pdf-comp-report-template');
+    printTemplate.style.display = 'block';
+
+    // تعبئة البيانات الأساسية (اسم الشركة والتاريخ)
+    document.getElementById('print-comp-full-name').innerText = c.company;
+    const today = new Date();
+    document.getElementById('print-comp-date').innerText = `تاريخ استخراج التقرير: ${today.toLocaleDateString('ar-EG')}`;
+
+    let reportHtml = '';
+
+    // إحصائية سريعة لعدد الماكينات
+    const compCount = c.assets.filter(a => a.type === 'compressor').length;
+    const dryerCount = c.assets.filter(a => a.type === 'dryer').length;
+    const vacCount = c.assets.filter(a => a.type === 'vacuum').length;
+
+    reportHtml += `<div style="margin-bottom: 25px; padding: 15px; background: #f8fafc; border: 2px solid #006F8F; border-radius: 12px; display: flex; justify-content: space-around; font-weight: bold; font-size: 1.1rem; color: #0f172a;">
+        <span><i class="fa-solid fa-wind" style="color:#006F8F;"></i> كمبريسور: ${compCount}</span>
+        <span><i class="fa-solid fa-temperature-arrow-down" style="color:#f97316;"></i> مجفف: ${dryerCount}</span>
+        <span><i class="fa-solid fa-fan" style="color:#8b5cf6;"></i> طلمبة تفريغ: ${vacCount}</span>
+    </div>`;
+
+    // المرور على كل ماكينة وسحب بياناتها
+    c.assets.forEach((a, index) => {
+        let icon, typeName, titleBg, bodyBg;
+        
+        if (a.type === 'compressor') {
+            icon = 'fa-wind'; typeName = 'Compressor'; titleBg = '#006F8F'; bodyBg = '#f0f9ff';
+        } else if (a.type === 'dryer') {
+            icon = 'fa-temperature-arrow-down'; typeName = 'Dryer'; titleBg = '#ea580c'; bodyBg = '#fff7ed';
+        } else {
+            icon = 'fa-fan'; typeName = 'Vacuum Pump'; titleBg = '#7c3aed'; bodyBg = '#f5f3ff';
+        }
+        reportHtml += `<div class="print-box" style="margin-bottom: 25px; border-color: ${titleBg}; page-break-inside: avoid;">
+        <div class="print-box-title" style="background: ${titleBg} !important; color: white !important; justify-content: center; font-size: 1.25rem;">
+            <i class="fa-solid ${icon}"></i> 
+            <span>الماكينة (${index + 1})</span>
+            <span style="margin: 0 10px;">-</span>
+            <span dir="ltr" style="font-weight: 900; letter-spacing: 0.5px;">${a.name}</span>
+            <span dir="ltr" style="opacity: 0.85; font-size: 1rem; margin-right: 8px;">(${typeName})</span>
+        </div>
+        <div class="print-box-content" style="background: ${bodyBg} !important; padding: 15px;">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 0.95rem;">
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 33%;"><strong>الرقم التسلسلي (S/N):</strong> ${a.serial || '-'}</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 33%;"><strong>سنة التصنيع:</strong> ${a.year || '-'}</td>`;
+
+        if (a.type === 'compressor') {
+            reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>معدل التشغيل:</strong> ${a.dailyHours || c.dailyHours || 0} ساعة/يوم</td></tr>
+            <tr>
+                <td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>ساعات التشغيل المسجلة:</strong> <span style="color:#ef4444; font-weight:bold;">${a.currentHours || 0} ساعة</span></td>
+            </tr></table>`;
+            
+            // جدول الصيانة الخاص بالكمبريسور
+            reportHtml += `<h4 style="margin: 0 0 10px 0; color: ${titleBg};"><i class="fa-solid fa-list-check"></i> جدول خطة الصيانة (Maintenance Plan):</h4>`;
+            
+            if (a.maintenancePlan && a.maintenancePlan.length > 0) {
+                let nextIdx = a.nextMaintenanceIndex || 0;
+                let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+                const currentHours = a.currentHours || 0;
+                const dailyHours = a.dailyHours || 0;
+                const daysOff = a.daysOff || 0;
+
+                reportHtml += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #e2e8f0;">
+                            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: right;">نوع الصيانة</th>
+                            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">الساعات المستهدفة</th>
+                            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">الحالة</th>
+                            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">التاريخ</th>
+                        </tr>
+                    </thead>
+                    <tbody style="background: white;">`;
+
+                for(let i=0; i<a.maintenancePlan.length; i++) {
+                    let stepChar = a.maintenancePlan[i];
+                    let target = base + ((i - nextIdx + 1) * 2000);
+                    let label = getMaintenanceLabel(stepChar);
+
+                    if (i < nextIdx) {
+                        // الصيانة المنفذة
+                        let actualHours = a.completedStepsHours ? a.completedStepsHours[i] : "تمت ضمناً";
+                        let actualDate = (a.completedStepsDates && a.completedStepsDates[i]) ? a.completedStepsDates[i] : "منفذة مسبقاً";
+                        reportHtml += `<tr>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold;">${label}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">عند ${actualHours} ساعة</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">✔️ مكتملة</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">${actualDate}</td>
+                        </tr>`;
+                    } else {
+                        // الصيانة القادمة
+                        let hoursRemaining = target - currentHours;
+                        let dateStr = 'غير محدد';
+                        let statusColor = '#d97706';
+                        let statusText = '🕒 مجدولة';
+
+                        if (hoursRemaining <= 0) {
+                            statusColor = '#ef4444';
+                            statusText = '🔴 مستحقة فوراً';
+                            dateStr = 'مطلوبة الآن';
+                        } else if (dailyHours > 0) {
+                            if (a.subType && a.subType.includes('Used')) {
+                                const targetAddedHours = target - base;
+                                const dateCalc = calculateUsedCompressorDate(a.startDate, dailyHours, daysOff, targetAddedHours);
+                                dateStr = dateCalc.str;
+                            } else {
+                                let calcBaseDate = new Date();
+                                if (a.lastUpdated) calcBaseDate = new Date(a.lastUpdated);
+                                else if (a.currentHours === 0 && a.startDate) calcBaseDate = new Date(a.startDate);
+
+                                const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                                dateStr = calc.str;
+                            }
+                        }
+
+                        reportHtml += `<tr>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold;">${label}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">عند ${target} ساعة</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: ${statusColor}; font-weight: bold;">${statusText}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold;">${dateStr}</td>
+                        </tr>`;
+                    }
+                }
+                reportHtml += `</tbody></table>`;
+            } else {
+                reportHtml += `<p style="color: #ef4444; font-weight: bold; margin: 0;">⚠️ لا توجد خطة صيانة مسجلة أو الماكينة معلقة.</p>`;
+            }
+
+        } else if (a.type === 'dryer') {
+            reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>نوع الفريون:</strong> ${a.freon || '-'}</td></tr>
+            <tr>
+                <td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>القدرة (Capacity):</strong> <span style="font-weight:bold;">${a.capacity || '-'}</span></td>
+            </tr></table>`;
+            reportHtml += `<p style="color: #ea580c; font-size: 0.9rem; margin: 0;"><i class="fa-solid fa-wrench"></i> <strong>الصيانة:</strong> يتم الفحص وتغيير طقم التصريف (Auto Drain) بشكل دوري مع زيارات العقد.</p>`;
+        } else if (a.type === 'vacuum') {
+            reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>الضغط:</strong> ${a.bar || '-'} Bar</td></tr></table>`;
+            reportHtml += `<p style="color: #7c3aed; font-size: 0.9rem; margin: 0;"><i class="fa-solid fa-gears"></i> <strong>الصيانة:</strong> يتم فحص أداء طلمبة التفريغ وعمل الصيانات اللازمة خلال الزيارات الدورية.</p>`;
+        }
+
+        reportHtml += `</div></div>`;
+    });
+
+    document.getElementById('comp-report-body').innerHTML = reportHtml;
+
+    // استدعاء نافذة الطباعة بعد تحضير الـ HTML
+    setTimeout(() => {
+        window.print();
+        // إخفاء القالب بعد الطباعة لمنع ظهوره في واجهة المستخدم
+        setTimeout(() => {
+            printTemplate.style.display = 'none';
+        }, 500);
+    }, 100);
+};
+
+// --- PRINT SINGLE ASSET PDF REPORT (HISTORY & PLAN) ---
+window.printSingleAssetPDF = function(assetIndex) {
+    if(!currentAssetContractId) return;
+    const c = contracts.find(x => x.id === currentAssetContractId);
+    if(!c || !c.assets || !c.assets[assetIndex]) return;
+    
+    const a = c.assets[assetIndex];
+    const printTemplate = document.getElementById('pdf-comp-report-template');
+    printTemplate.style.display = 'block';
+
+    // تعبئة البيانات الأساسية (اسم الشركة والتاريخ)
+    document.getElementById('print-comp-full-name').innerText = c.company;
+    const today = new Date();
+    document.getElementById('print-comp-date').innerText = `تاريخ استخراج التقرير: ${today.toLocaleDateString('ar-EG')}`;
+
+    let icon, typeName, titleBg, bodyBg;
+    if (a.type === 'compressor') { icon = 'fa-wind'; typeName = 'Compressor'; titleBg = '#006F8F'; bodyBg = '#f0f9ff'; }
+    else if (a.type === 'dryer') { icon = 'fa-temperature-arrow-down'; typeName = 'Dryer'; titleBg = '#ea580c'; bodyBg = '#fff7ed'; }
+    else { icon = 'fa-fan'; typeName = 'Vacuum Pump'; titleBg = '#7c3aed'; bodyBg = '#f5f3ff'; }
+
+    let reportHtml = `
+    <div style="text-align:center; margin-bottom: 25px; padding: 15px; background: #f8fafc; border: 2px solid ${titleBg}; border-radius: 12px;">
+        <h2 style="color: ${titleBg}; margin: 0 0 5px 0;">السجل الفني للماكينة: <span dir="ltr" style="font-weight: 900;">${a.name}</span></h2>
+        <span dir="ltr" style="color: #64748b; font-size: 1.1rem; font-weight: bold;">(${typeName})</span>
+    </div>`;
+
+    // 1. بيانات الماكينة الأساسية
+    reportHtml += `<div class="print-box" style="margin-bottom: 25px; border-color: ${titleBg}; page-break-inside: avoid;">
+        <div class="print-box-title" style="background: ${titleBg} !important; color: white !important; font-size: 1.15rem;">
+            <i class="fa-solid fa-microchip"></i> بيانات الماكينة الأساسية
+        </div>
+        <div class="print-box-content" style="background: ${bodyBg} !important; padding: 15px;">
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 0.95rem;">
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 33%;"><strong>الرقم التسلسلي (S/N):</strong> ${a.serial || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 33%;"><strong>سنة التصنيع:</strong> ${a.year || '-'}</td>`;
+
+    if (a.type === 'compressor') {
+        reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>معدل التشغيل:</strong> ${a.dailyHours || c.dailyHours || 0} ساعة/يوم</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>ساعات التشغيل المسجلة (حتى تاريخه):</strong> <span style="color:#ef4444; font-weight:bold;">${a.currentHours || 0} ساعة</span></td></tr></table></div></div>`;
+
+        // 2. خطة الصيانة للكمبريسور
+        reportHtml += `<div class="print-box" style="margin-bottom: 25px; border-color: #059669; page-break-inside: avoid;">
+            <div class="print-box-title" style="background: #059669 !important; color: white !important; font-size: 1.15rem;">
+                <i class="fa-solid fa-list-check"></i> الموقف الحالي لخطة الصيانة (Maintenance Plan)
+            </div>
+            <div class="print-box-content" style="background: #f0fdf4 !important; padding: 15px;">`;
+
+        if (a.maintenancePlan && a.maintenancePlan.length > 0) {
+            let nextIdx = a.nextMaintenanceIndex || 0;
+            let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
+            const currentHours = a.currentHours || 0;
+            const dailyHours = a.dailyHours || 0;
+            const daysOff = a.daysOff || 0;
+
+            reportHtml += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                <thead>
+                    <tr style="background: #e2e8f0;">
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: right;">نوع الصيانة</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">الساعات المستهدفة</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">الحالة</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">التاريخ المتوقع</th>
+                    </tr>
+                </thead><tbody style="background: white;">`;
+
+            for(let i=0; i<a.maintenancePlan.length; i++) {
+                let stepChar = a.maintenancePlan[i];
+                let target = base + ((i - nextIdx + 1) * 2000);
+                let label = getMaintenanceLabel(stepChar);
+
+                if (i < nextIdx) {
+                    let actualHours = a.completedStepsHours ? a.completedStepsHours[i] : "تمت ضمناً";
+                    let actualDate = (a.completedStepsDates && a.completedStepsDates[i]) ? a.completedStepsDates[i] : "منفذة مسبقاً";
+                    reportHtml += `<tr>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold;">${label}</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">عند ${actualHours} ساعة</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">✔️ مكتملة</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">${actualDate}</td>
+                    </tr>`;
+                } else {
+                    let hoursRemaining = target - currentHours;
+                    let dateStr = 'غير محدد';
+                    let statusColor = '#d97706';
+                    let statusText = '🕒 مجدولة';
+
+                    if (hoursRemaining <= 0) {
+                        statusColor = '#ef4444'; statusText = '🔴 مستحقة فوراً'; dateStr = 'مطلوبة الآن';
+                    } else if (dailyHours > 0) {
+                        if (a.subType && a.subType.includes('Used')) {
+                            const targetAddedHours = target - base;
+                            const dateCalc = calculateUsedCompressorDate(a.startDate, dailyHours, daysOff, targetAddedHours);
+                            dateStr = dateCalc.str;
+                        } else {
+                            let calcBaseDate = new Date();
+                            if (a.lastUpdated) calcBaseDate = new Date(a.lastUpdated);
+                            else if (a.currentHours === 0 && a.startDate) calcBaseDate = new Date(a.startDate);
+                            const calc = calculateDate(calcBaseDate, dailyHours, daysOff, hoursRemaining);
+                            dateStr = calc.str;
+                        }
+                    }
+                    reportHtml += `<tr>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold;">${label}</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">عند ${target} ساعة</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: ${statusColor}; font-weight: bold;">${statusText}</td>
+                        <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold;">${dateStr}</td>
+                    </tr>`;
+                }
+            }
+            reportHtml += `</tbody></table></div></div>`;
+        } else {
+            reportHtml += `<p style="color: #ef4444; font-weight: bold; margin: 0;">⚠️ لا توجد خطة صيانة مجدولة حالياً.</p></div></div>`;
+        }
+    } else if (a.type === 'dryer') {
+        reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>نوع الفريون:</strong> ${a.freon || '-'}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>القدرة (Capacity):</strong> <span style="font-weight:bold;">${a.capacity || '-'}</span></td></tr></table></div></div>`;
+    } else if (a.type === 'vacuum') {
+        reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>الضغط:</strong> ${a.bar || '-'} Bar</td></tr></table></div></div>`;
+    }
+
+    // 3. سجل الزيارات السابق (History Log)
+    // سحب الفلترة بناءً على الـ assetIndex الخاص بالماكينة وترتيبهم من الأحدث للأقدم
+    const assetHistory = (c.history || []).filter(h => h.assetIndex == assetIndex).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    reportHtml += `<div class="print-box" style="border-color: #475569;">
+        <div class="print-box-title" style="background: #475569 !important; color: white !important; font-size: 1.15rem;">
+            <i class="fa-solid fa-clock-rotate-left"></i> سجل الزيارات والصيانات السابقة (History Log)
+        </div>
+        <div class="print-box-content" style="background: white !important; padding: 20px;">`;
+
+    if(assetHistory.length === 0) {
+        reportHtml += `<div style="text-align:center; color: #64748b; padding: 20px; font-weight: bold;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.5;"></i><br>لم يتم تسجيل أي زيارات سابقة لهذه الماكينة حتى الآن.</div>`;
+    } else {
+        assetHistory.forEach((h, i) => {
+            reportHtml += `
+            <div style="border-bottom: ${i === assetHistory.length - 1 ? 'none' : '2px dashed #e2e8f0'}; padding-bottom: 15px; margin-bottom: 15px; page-break-inside: avoid;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span style="background: #e2e8f0; color: #0f172a; padding: 5px 12px; border-radius: 6px; font-weight: bold; font-size: 0.95rem;">
+                        <i class="fa-regular fa-calendar-check" style="color: #006F8F;"></i> ${h.date}
+                    </span>
+                </div>
+                <div style="white-space: pre-wrap; font-size: 1rem; color:#334155; line-height: 1.6; padding-right: 15px; border-right: 3px solid #cbd5e1;">${h.notes}</div>
+            </div>`;
+        });
+    }
+    reportHtml += `</div></div>`;
+
+    // تعبئة البيانات في قالب الطباعة
+    document.getElementById('comp-report-body').innerHTML = reportHtml;
+
+    // استدعاء نافذة الطباعة
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => { printTemplate.style.display = 'none'; }, 500);
+    }, 100);
+};
+
+// --- دالة فتح واتساب الشركة بدون رسائل مسبقة ---
+window.sendCompanyGreetingWA = function() {
+    if(!currentAssetContractId) return;
+    const c = contracts.find(x => x.id === currentAssetContractId);
+    if(!c) return;
+
+    const phone = formatPhone(c.phone);
+    
+    // فتح الواتساب باستخدام الرقم فقط بدون أي نص
+    window.open(`https://wa.me/${phone}`, '_blank');
 };
