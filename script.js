@@ -2810,16 +2810,21 @@ function renderDetailedTimeline(asset, assetIndex) {
 // =========================================================
 
 window.pauseMachine = function(cId, aIdx) {
-    if(confirm("هل أنت متأكد من إيقاف الماكينة مؤقتاً؟\nسيتم إيقاف حساب التواريخ المستقبلية للصيانة حتى تقوم بإعادة تشغيلها وإدخال البيانات الجديدة.")) {
-        const cIdx = contracts.findIndex(c => c.id === cId);
-        if (cIdx !== -1) {
-            contracts[cIdx].assets[aIdx].isPaused = true;
-            saveData();
-            renderAll();
-            openMachineDetails(aIdx);
-            showToast("تم إيقاف الماكينة مؤقتاً", "success");
+    window.showCustomConfirm(
+        "إيقاف الماكينة مؤقتاً",
+        "هل أنت متأكد من إيقاف الماكينة مؤقتاً؟ سيتم إيقاف حساب التواريخ المستقبلية للصيانة حتى تقوم بإعادة تشغيلها وإدخال البيانات الجديدة.",
+        "نعم، أوقف الماكينة",
+        function() {
+            const cIdx = contracts.findIndex(c => c.id === cId);
+            if (cIdx !== -1) {
+                contracts[cIdx].assets[aIdx].isPaused = true;
+                saveData();
+                renderAll();
+                openMachineDetails(aIdx);
+                showToast("تم إيقاف الماكينة مؤقتاً", "success");
+            }
         }
-    }
+    );
 };
 
 window.openResumeMachineModal = function(cId, aIdx) {

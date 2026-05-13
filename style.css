@@ -204,6 +204,7 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .btn-icon-edit { background: #eff6ff; color: var(--primary); }
 .btn-icon-del { background: #fee2e2; color: #ef4444; }
 .btn-icon-pdf { background: #e0f2fe; color: #0284c7; } 
+
 /* --- تنسيقات أزرار صفحة الماكينات وتأثيرات الـ Hover --- */
 
 /* زر واتساب الشركة */
@@ -294,7 +295,6 @@ tr:hover { background-color: rgba(0, 111, 143, 0.04); }
 .asset-btn-edit:hover { background: var(--primary); color: white; }
 .asset-btn-del { background: #fee2e2; color: #ef4444; }
 .asset-btn-del:hover { background: #ef4444; color: white; }
-/* أضف هذا الكود الخاص بزر الـ PDF */
 .asset-btn-pdf { background: #fee2e2; color: #ef4444; }
 .asset-btn-pdf:hover { background: #ef4444; color: white; }
 
@@ -516,7 +516,37 @@ table { min-width: 800px; }
 
     .content-scroll { padding: 15px; }
     .section-header { flex-direction: column; align-items: flex-start; gap: 15px; }
-    .section-header > div:last-child, .section-header > div:first-child { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+    
+    /* التعديلات الجديدة للموبايل لإصلاح العناوين والزراير */
+    .section-header > div:first-child { 
+        width: 100%; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: flex-start; 
+        gap: 8px; 
+    }
+    .section-header > div:last-child { 
+        width: 100%; 
+        display: flex; 
+        flex-wrap: wrap; 
+        gap: 10px; 
+        justify-content: stretch; 
+    }
+    .section-header > div:last-child .btn {
+        flex: 1 1 calc(50% - 10px); 
+        padding: 10px 5px;
+        font-size: 0.85rem;
+        margin: 0;
+    }
+    .btn {
+        white-space: normal !important; 
+        word-wrap: break-word;
+        text-align: center;
+        justify-content: center;
+        height: auto;
+        min-height: 42px; 
+    }
+    /* نهاية التعديلات للزراير */
 
     .stats-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
     .stat-card { padding: 15px; }
@@ -538,37 +568,91 @@ table { min-width: 800px; }
     .visit-header { flex-direction: column; align-items: flex-start; gap: 10px; }
     .visit-actions { width: 100%; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 10px; }
     
+    /* -------------------------------------------------------------
+       تعديلات جدول العقود ليكون متجاوباً بالكامل (Cards) على الموبايل
+       ------------------------------------------------------------- */
+    
+    /* 1. إلغاء العرض الإجباري للجدول لمنع الـ Scroll */
+    .table-responsive { overflow-x: hidden !important; padding-bottom: 0; }
+    table { min-width: 100% !important; } 
+
+    /* 2. إخفاء رأس الجدول وتحويله لـ Block */
     #main-table thead { display: none; }
     #main-table, #main-table tbody { display: block; width: 100%; }
     
+    /* 3. تصميم الـ Card الأساسي لكل عقد */
     #main-table tr { 
-        display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; 
-        background: white; border-radius: 16px; border: 1px solid var(--border-color); 
-        padding: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.06); 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 12px; 
+        margin-bottom: 20px; 
+        background: white; 
+        border-radius: 16px; 
+        border: 1px solid var(--border-color); 
+        padding: 16px; 
+        box-shadow: 0 5px 15px rgba(0,0,0,0.06); 
     }
-    #main-table td { display: block; border: none !important; padding: 0 !important; text-align: right !important; font-size: 0.95rem; }
+    
+    #main-table td { 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center;
+        border: none !important; 
+        padding: 0 !important; 
+        text-align: right !important; 
+        font-size: 0.95rem; 
+    }
+    
     #main-table td::before { display: none; }
 
-    #main-table td:nth-child(1) { grid-column: 1 / -1; border-bottom: 1px dashed #cbd5e1 !important; padding-bottom: 12px !important; position: relative; }
-    #main-table td:nth-child(1) .company-link { font-size: 1.15rem; color: var(--primary-dark); }
-    #main-table td:nth-child(1) .badge { position: absolute; left: 0; top: 0; font-size: 0.75rem !important; padding: 5px 12px !important; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    /* 4. الشركة / العميل (تأخذ العرض بالكامل في الأعلى) */
+    #main-table td:nth-child(1) { 
+        grid-column: 1 / -1; 
+        border-bottom: 1px dashed #cbd5e1 !important; 
+        padding-bottom: 12px !important; 
+        position: relative; 
+        align-items: flex-start;
+    }
+    #main-table td:nth-child(1) .company-link { font-size: 1.15rem; color: var(--primary-dark); margin-bottom: 5px; }
+    #main-table td:nth-child(1) .badge { position: relative; margin-top: 5px; font-size: 0.75rem !important; padding: 5px 12px !important; }
 
-    #main-table td:nth-child(2), #main-table td:nth-child(3) { background: #f8fafc; padding: 12px !important; border-radius: 10px; text-align: center !important; border: 1px solid #e2e8f0 !important; }
+    /* 5. تواريخ البداية والنهاية (جنب بعض) */
+    #main-table td:nth-child(2), #main-table td:nth-child(3) { 
+        background: #f8fafc; 
+        padding: 12px !important; 
+        border-radius: 10px; 
+        text-align: center !important; 
+        border: 1px solid #e2e8f0 !important; 
+        align-items: center;
+    }
     #main-table td:nth-child(2)::before { content: "بداية العقد"; display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 5px; font-weight: 800; }
     #main-table td:nth-child(3)::before { content: "نهاية العقد"; display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 5px; font-weight: 800; }
-    #main-table td:nth-child(2) div, #main-table td:nth-child(3) div { color: var(--primary); font-size: 0.95rem; }
+    #main-table td:nth-child(2) div, #main-table td:nth-child(3) div { color: var(--primary); font-size: 0.95rem; font-weight: bold; }
 
-    #main-table td:nth-child(4) { grid-column: 1 / -1; padding-top: 5px !important; padding-bottom: 5px !important; }
+    /* 6. نسبة الإنجاز (شريط التقدم) */
+    #main-table td:nth-child(4) { 
+        grid-column: 1 / -1; 
+        padding-top: 10px !important; 
+        padding-bottom: 5px !important; 
+    }
     #main-table td:nth-child(4)::before { content: "نسبة الإنجاز (الزيارات)"; display: block; font-size: 0.8rem; color: var(--text-light); font-weight: 800; margin-bottom: 10px; }
-    #main-table td:nth-child(4) > div { flex-direction: row !important; justify-content: space-between; align-items: center; gap: 15px; }
-    #main-table td:nth-child(4) .progress-track { flex: 1; height: 8px; border-radius: 10px; background: #e2e8f0; }
+    #main-table td:nth-child(4) > div { flex-direction: row !important; justify-content: space-between; align-items: center; gap: 15px; width: 100%; }
+    #main-table td:nth-child(4) .progress-track { flex: 1; height: 8px; border-radius: 10px; background: #e2e8f0; width: auto; margin: 0;}
     #main-table td:nth-child(4) .progress-fill { height: 100%; border-radius: 10px; }
 
-    #main-table td:nth-child(5) { grid-column: 1 / -1; background: #f1f5f9; padding: 12px !important; border-radius: 12px; margin-top: 5px; }
-    #main-table .actions-grid { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; justify-content: center; }
-    #main-table .actions-grid .action-btn { flex: 1; min-width: 45px; height: 40px; border-radius: 10px; font-size: 1.1rem; }
+    /* 7. الإجراءات والزراير */
+    #main-table td:nth-child(5) { 
+        grid-column: 1 / -1; 
+        background: #f1f5f9; 
+        padding: 12px !important; 
+        border-radius: 12px; 
+        margin-top: 5px; 
+    }
+    #main-table .actions-grid { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; justify-content: space-between; }
+    #main-table .actions-grid .action-btn { flex: 1; min-width: 40px; height: 40px; border-radius: 10px; font-size: 1.1rem; }
     #main-table .actions-grid .btn-icon-del { flex-basis: 100%; }
-    
+    /* نهاية تعديلات جدول العقود */
+
     .plan-builder-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
     .notif-dropdown { width: 300px; left: 15px; right: auto; top: 55px; }
 }
