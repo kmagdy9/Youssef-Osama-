@@ -153,14 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         contracts = [];
         renderAll();
     }
-    
-    document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById('notif-dropdown');
-        const btn = document.getElementById('notif-btn');
-        if (!dropdown.contains(event.target) && !btn.contains(event.target)) {
-            dropdown.style.display = 'none';
-        }
-    });
 
     document.addEventListener('keydown', (e) => {
         if (document.getElementById('lightbox').style.display === 'flex') {
@@ -343,15 +335,16 @@ function getStatus(c) {
 
     if(c.assets && c.assets.length > 0) {
         c.assets.forEach(a => {
-            if(a.type === 'compressor' && a.maintenancePlan && a.maintenancePlan.length > 0) {
+            if(a.type === 'compressor' && a.maintenancePlan && a.maintenancePlan.length > 0 && !a.isPaused) {
                 let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
                 let nextIdx = a.nextMaintenanceIndex || 0;
 
                 if (nextIdx < a.maintenancePlan.length) {
                     const target = base + 2000;
-                    if (a.currentHours >= target) {
+                    const remaining = getDynamicRemainingHours(a, target);
+                    if (remaining <= 0) {
                         hasDueMachine = true;
-                    } else if ((target - a.currentHours) <= 50) { 
+                    } else if (remaining <= 100) { 
                         hasSoonMachine = true;
                     }
                 }
@@ -428,13 +421,13 @@ function renderUrgentAlerts() {
 
         if(c.assets) {
             c.assets.forEach(a => {
-                if(a.type === 'compressor' && a.maintenancePlan) {
+                if(a.type === 'compressor' && a.maintenancePlan && !a.isPaused) {
                     let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
                     let nextIdx = a.nextMaintenanceIndex || 0;
 
                     if (nextIdx < a.maintenancePlan.length) {
                         const target = base + 2000;
-                        const remaining = target - a.currentHours;
+                        const remaining = getDynamicRemainingHours(a, target);
 
                         let maintName = "صيانة دورية";
                         if (target > 0 && target % 24000 === 0) {
@@ -446,7 +439,7 @@ function renderUrgentAlerts() {
                         if(remaining <= 0) {
                             addAlertItem(container, c.company, `${maintName} مستحقة: ${a.name} (تجاوزت الموعد)`, 'due');
                             alertCount++;
-                        } else if (remaining <= 50) { 
+                        } else if (remaining <= 100) { 
                             addAlertItem(container, c.company, `اقتراب ${maintName}: ${a.name} (باقي ${remaining} ساعة)`, 'soon');
                             alertCount++;
                         }
@@ -540,20 +533,21 @@ function renderForecastChart() {
     contracts.forEach(c => {
         if(!c.isHold && c.assets) {
             c.assets.forEach(a => {
-                if(a.type === 'compressor' && a.dailyHours > 0 && a.maintenancePlan) {
+                if(a.type === 'compressor' && a.dailyHours > 0 && a.maintenancePlan && !a.isPaused) {
                     let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
                     let nextIdx = a.nextMaintenanceIndex || 0;
 
                     if (nextIdx < a.maintenancePlan.length) {
                         const target = base + 2000; 
-                        if(a.currentHours < target) {
+                        const remaining = getDynamicRemainingHours(a, target);
+                        
+                        if(remaining > 0) {
                             let diffMonths;
                             if (a.subType && a.subType.includes('Used')) {
                                 const targetAddedHours = target - (a.planBaseHours || 0);
                                 const calc = calculateUsedCompressorDate(a.startDate, a.dailyHours, a.daysOff || 0, targetAddedHours);
                                 diffMonths = (calc.due.getFullYear() - today.getFullYear()) * 12 + (calc.due.getMonth() - today.getMonth());
                             } else {
-                                const remaining = target - a.currentHours;
                                 let calcBaseDate = new Date();
                                 if (a.lastUpdated) {
                                     calcBaseDate = new Date(a.lastUpdated);
@@ -609,7 +603,7 @@ function renderTopMachines() {
     contracts.forEach(c => {
         if(!c.isHold && c.assets) {
             c.assets.forEach(a => {
-                if(a.type === 'compressor') {
+                if(a.type === 'compressor' && !a.isPaused) {
                     allMachines.push({
                         name: a.name,
                         company: c.company,
@@ -756,10 +750,8 @@ function openCompanyAssets(id) {
     const c = contracts.find(x => x.id === id);
     if (!c) return;
     
-    // تحديث اسم الشركة في العنوان الرئيسي
     document.getElementById('asset-company-title').innerText = c.company;
     
-    // تحديث اسم الشركة داخل زرار الواتساب الجديد
     const waBtnText = document.getElementById('wa-company-name');
     if(waBtnText) waBtnText.innerText = c.company;
     
@@ -807,8 +799,11 @@ function renderAssetsGrid(assets) {
             let nextMaintText = "تم الانتهاء من الخطة";
             let nextColor = "#cbd5e1";
             
-            if (asset.isPlanHold || !asset.maintenancePlan || asset.maintenancePlan.length === 0) {
-                // تم إضافة span مع كلاس الحركة و display:inline-block لتفعيل تأثير الـ transform
+            if (asset.isPaused) {
+                nextMaintText = "<span style='color:#f59e0b;'><i class='fa-solid fa-pause'></i> متوقفة مؤقتاً</span>";
+                nextColor = "#f59e0b";
+            }
+            else if (asset.isPlanHold || !asset.maintenancePlan || asset.maintenancePlan.length === 0) {
                 nextMaintText = "<span class='warning-anim' style='display: inline-block; margin-left: 5px;'>⚠️ معلق (بانتظار تحديد خطة)</span> ";
                 nextColor = "#d97706";
             }
@@ -1559,17 +1554,21 @@ document.getElementById('usedCompressorForm').addEventListener('submit', (e) => 
             completedStepsHours: completedSteps,
             completedStepsDates: [], 
             lastUpdated: lastUpdatedDate,
-            isPlanHold: false 
+            isPlanHold: false,
+            isPaused: false
         };
 
         if (!contracts[idx].assets) contracts[idx].assets = [];
         
         if (editingAssetIndex !== null) {
-            // Keep old dates if they exist when editing
             const existingAsset = contracts[idx].assets[editingAssetIndex];
             if (existingAsset && existingAsset.completedStepsDates) {
                 compData.completedStepsDates = [...existingAsset.completedStepsDates];
             }
+            if (existingAsset && existingAsset.isPaused !== undefined) {
+                compData.isPaused = existingAsset.isPaused;
+            }
+
             contracts[idx].assets[editingAssetIndex] = {
                 ...contracts[idx].assets[editingAssetIndex],
                 ...compData
@@ -1607,6 +1606,7 @@ form.addEventListener('submit', async (e) => {
         visitsDone: id ? contracts.find(x=>x.id==id).visitsDone : 0, history: id ? contracts.find(x=>x.id==id).history : [], assets: id ? contracts.find(x=>x.id==id).assets : [],
         inventory: id ? (contracts.find(x=>x.id==id).inventory || []) : [],
         contractPDF: pdfData,
+        lastContactDate: id ? contracts.find(x=>x.id==id).lastContactDate : null,
         isHold: id ? contracts.find(x=>x.id==id).isHold : false 
     };
     if(id) { contracts[contracts.findIndex(x=>x.id==id)] = formData; } else { contracts.push(formData); }
@@ -1614,6 +1614,46 @@ form.addEventListener('submit', async (e) => {
 });
 
 // --- 14. UTILS ---
+
+function getDynamicRemainingHours(asset, targetHours) {
+    const currentHours = asset.currentHours || 0;
+    const daily = asset.dailyHours || 0;
+    const off = asset.daysOff || 0;
+
+    if (daily <= 0 || asset.isPaused) {
+        return targetHours - currentHours;
+    }
+
+    let baseDateStr = asset.lastUpdated || asset.startDate || getLocalDateString();
+    let baseDate = new Date();
+    
+    if (typeof baseDateStr === 'string' && baseDateStr.includes('-')) {
+        const datePart = baseDateStr.split('T')[0];
+        const parts = datePart.split('-');
+        baseDate = new Date(parts[0], parts[1] - 1, parts[2], 8, 0, 0); 
+    } else if (baseDateStr instanceof Date) {
+        baseDate = new Date(baseDateStr);
+    }
+
+    const now = new Date();
+    const timeElapsedMs = now.getTime() - baseDate.getTime();
+    
+    if (timeElapsedMs <= 0) {
+        return targetHours - currentHours;
+    }
+
+    const totalDaysElapsed = timeElapsedMs / (1000 * 60 * 60 * 24);
+    const calendarDaysRatio = 30 / (30 - off);
+    const workingDaysElapsed = totalDaysElapsed / calendarDaysRatio;
+    
+    const hoursElapsed = workingDaysElapsed * daily;
+
+    let dynamicCurrentHours = currentHours + hoursElapsed;
+    let remaining = targetHours - dynamicCurrentHours;
+    
+    return Math.round(remaining); 
+}
+
 function getLocalDateString() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1650,7 +1690,6 @@ function closeModal() { modal.style.display = 'none'; }
 function editContract(id) {
     const c = contracts.find(x=>x.id===id);
     
-    // تفريغ الفورم لضمان إزالة أي ملف قديم معلق في الـ Input
     document.getElementById('contractForm').reset(); 
     
     document.getElementById('editId').value = c.id;
@@ -1668,10 +1707,8 @@ function openContractPDF(id) {
     const c = contracts.find(x => x.id === id);
     if (c && c.contractPDF) {
         try {
-            // فصل البيانات عن الهيدر الخاص بالـ Base64
             const base64Data = c.contractPDF.split(',')[1];
             
-            // تحويل النص إلى بايتات
             const byteCharacters = atob(base64Data);
             const byteNumbers = new Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
@@ -1679,11 +1716,9 @@ function openContractPDF(id) {
             }
             const byteArray = new Uint8Array(byteNumbers);
             
-            // إنشاء ملف حقيقي (Blob) في الذاكرة الوهمية للمتصفح
             const blob = new Blob([byteArray], {type: 'application/pdf'});
             const blobUrl = URL.createObjectURL(blob);
             
-            // فتح الملف بأمان في نافذة جديدة
             window.open(blobUrl, '_blank');
         } catch (error) {
             console.error("Error opening PDF:", error);
@@ -1694,7 +1729,6 @@ function openContractPDF(id) {
     }
 }
 function showContractFilePreview(input) { document.getElementById('contract-file-preview').innerText = input.files[0] ? input.files[0].name : ''; }
-
 
 // --- دوال الواتساب الاحترافية المخصصة لكل ماكينة ---
 window.openAssetWAModal = function(assetIndex) {
@@ -1779,7 +1813,7 @@ window.sendProfessionalWAMessage = function(actionType) {
                     if (i < nextIdx) {
                         msg += `✔️ *${label}* عند ${target} ساعة (مكتملة)\n`;
                     } else {
-                        let hoursRemaining = target - currentHours;
+                        let hoursRemaining = getDynamicRemainingHours(a, target);
                         let dateStr = 'غير محدد';
                         let statusEmoji = '🕒';
                         let statusText = '(مجدولة)';
@@ -1788,6 +1822,10 @@ window.sendProfessionalWAMessage = function(actionType) {
                             statusEmoji = '🔴';
                             statusText = '(مستحقة)';
                             dateStr = 'مطلوبة فوراً';
+                        } else if (a.isPaused) {
+                            statusEmoji = '⏸️';
+                            statusText = '(متوقفة مؤقتاً)';
+                            dateStr = 'متوقفة';
                         } else if (dailyHours > 0) {
                             if (a.subType && a.subType.includes('Used')) {
                                 const targetAddedHours = target - base;
@@ -1851,8 +1889,6 @@ window.sendProfessionalWAMessage = function(actionType) {
 
 function closeWAModal() { document.getElementById('waModal').style.display = 'none'; }
 
-
-// دالة إرسال التقرير الشامل لكل الماكينات في العقد عبر الواتساب
 window.sendFullContractWAMessage = function() {
     if(!currentAssetContractId) return;
     const c = contracts.find(x => x.id === currentAssetContractId);
@@ -1896,7 +1932,7 @@ window.sendFullContractWAMessage = function() {
                     if (i < nextIdx) {
                         msg += `✔️ *${label}* عند ${target} ساعة (مكتملة)\n`;
                     } else {
-                        let hoursRemaining = target - currentHours;
+                        let hoursRemaining = getDynamicRemainingHours(a, target);
                         let dateStr = 'غير محدد';
                         let statusEmoji = '🕒';
                         let statusText = '(مجدولة)';
@@ -1905,6 +1941,10 @@ window.sendFullContractWAMessage = function() {
                             statusEmoji = '🔴';
                             statusText = '(مستحقة)';
                             dateStr = 'مطلوبة فوراً';
+                        } else if (a.isPaused) {
+                            statusEmoji = '⏸️';
+                            statusText = '(متوقفة مؤقتاً)';
+                            dateStr = 'متوقفة';
                         } else if (dailyHours > 0) {
                             if (a.subType && a.subType.includes('Used')) {
                                 const targetAddedHours = target - base;
@@ -1951,19 +1991,24 @@ function updateNotifications() {
     const badge = document.getElementById('notif-badge'); 
     const bellBtn = document.getElementById('notif-btn'); 
     notifList.innerHTML = ''; 
-    let count = 0;
+    let totalCount = 0;
+    
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     contracts.forEach(c => {
         if(c.isHold) return;
 
-        // --- 1. إشعارات انتهاء العقد ---
+        let companyHTML = ''; 
+        let companyCount = 0;
+
+        // تنبيه اقتراب انتهاء العقد
         if(c.endDate) {
             const end = new Date(c.endDate);
             const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
             
             if(diffDays <= 30) {
-                count++;
+                companyCount++;
                 let isDanger = diffDays <= 0;
                 let msg = isDanger ? '🚨 العقد منتهي! يرجى التجديد فوراً' : `⏳ ينتهي العقد خلال ${diffDays} يوم`;
                 let color = isDanger ? '#ef4444' : '#d97706';
@@ -1971,81 +2016,83 @@ function updateNotifications() {
                 let icon = isDanger ? 'fa-triangle-exclamation' : 'fa-clock';
                 let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
                 
-                notifList.innerHTML += `
+                companyHTML += `
                     <div class="notif-item ${priorityClass}" onclick="goToContract(${c.id})">
-                        <div class="notif-icon-box" style="background:${bg}; color:${color}">
-                            <i class="fa-solid ${icon}"></i>
-                        </div>
+                        <div class="notif-icon-box" style="background:${bg}; color:${color}"><i class="fa-solid ${icon}"></i></div>
                         <div class="notif-content" style="flex:1;">
-                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                            <p style="margin:0; font-size:0.85rem; color:${color}; font-weight:700;">${msg}</p>
+                            <p style="margin:0; font-size:0.95rem; color:${color}; font-weight:700;">${msg}</p>
                         </div>
                         <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                     </div>`;
             }
         }
 
-        // --- 2. إشعارات موقف الزيارات (متبقي زيارة / ركود) ---
+        let lastVisitDateObj = c.startDate ? new Date(c.startDate) : new Date();
+        if (c.history && c.history.length > 0) {
+            const sortedHistory = [...c.history].sort((a,b) => new Date(b.date) - new Date(a.date));
+            lastVisitDateObj = new Date(sortedHistory[0].date);
+        }
+        lastVisitDateObj.setHours(0,0,0,0);
+
+        let lastContact = c.lastContactDate ? new Date(c.lastContactDate) : null;
+        if (lastContact) lastContact.setHours(0,0,0,0);
+        let refDateForContact = (lastContact && lastContact > lastVisitDateObj) ? lastContact : lastVisitDateObj;
+        const daysSinceContactRef = Math.floor((today - refDateForContact) / (1000 * 60 * 60 * 24));
+
+        if (daysSinceContactRef >= 14) {
+            companyCount++;
+            companyHTML += `
+                <div class="notif-item priority-medium" onclick="promptClientContact(${c.id}, event)">
+                    <div class="notif-icon-box" style="background:#e0e7ff; color:#4f46e5"><i class="fa-solid fa-phone-volume"></i></div>
+                    <div class="notif-content" style="flex:1;">
+                        <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#4f46e5;">متابعة دورية:</b> مر ${daysSinceContactRef} يوم على آخر تواصل أو صيانة. <span style="text-decoration:underline;">تأكيد التواصل</span></p>
+                    </div>
+                    <i class="fa-solid fa-check-double" style="color:#cbd5e1; font-size:1.1rem;"></i>
+                </div>`;
+        }
+
         if (c.totalVisits > 0) {
-            // أ. متبقي زيارة واحدة
             if (c.totalVisits - c.visitsDone === 1) {
-                count++;
-                notifList.innerHTML += `
+                companyCount++;
+                companyHTML += `
                     <div class="notif-item priority-medium" onclick="goToContract(${c.id})">
-                        <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7">
-                            <i class="fa-solid fa-clipboard-check"></i>
-                        </div>
+                        <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7"><i class="fa-solid fa-clipboard-check"></i></div>
                         <div class="notif-content" style="flex:1;">
-                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7; font-size:0.9rem;">تجهيز للتجديد:</b> متبقي زيارة واحدة لانتهاء العقد</p>
+                            <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7;">تجهيز للتجديد:</b> متبقي زيارة واحدة لانتهاء العقد</p>
                         </div>
                         <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                     </div>`;
             }
 
-            // ب. ركود العقد (لم تتم أي زيارة من 3 شهور = 90 يوم)
-            let lastVisitDateObj = c.startDate ? new Date(c.startDate) : today;
-            if (c.history && c.history.length > 0) {
-                const sortedHistory = [...c.history].sort((a,b) => new Date(b.date) - new Date(a.date));
-                lastVisitDateObj = new Date(sortedHistory[0].date);
-            }
             const daysSinceLastVisit = Math.floor((today - lastVisitDateObj) / (1000 * 60 * 60 * 24));
-            
             if (daysSinceLastVisit >= 90 && c.visitsDone < c.totalVisits) {
-                count++;
-                notifList.innerHTML += `
+                companyCount++;
+                companyHTML += `
                     <div class="notif-item priority-medium" onclick="goToContract(${c.id})">
-                        <div class="notif-icon-box" style="background:#ffedd5; color:#ea580c">
-                            <i class="fa-solid fa-bed"></i>
-                        </div>
+                        <div class="notif-icon-box" style="background:#ffedd5; color:#ea580c"><i class="fa-solid fa-bed"></i></div>
                         <div class="notif-content" style="flex:1;">
-                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#ea580c; font-size:0.9rem;">ركود:</b> لم تتم أي زيارة منذ ${daysSinceLastVisit} يوم!</p>
+                            <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#ea580c;">ركود:</b> لم تتم أي زيارة منذ ${daysSinceLastVisit} يوم!</p>
                         </div>
                         <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                     </div>`;
             }
         }
 
-        // --- 3. إشعارات نواقص المخزن (Inventory) ---
         if (c.inventory && c.inventory.length > 0) {
             c.inventory.forEach(p => {
                 if (p.qty <= 1) {
-                    count++;
+                    companyCount++;
                     let isDanger = p.qty === 0;
                     let msg = isDanger ? `🚨 نفد رصيد (${p.name}) من المخزن` : `⚠️ اقترب نفاذ رصيد (${p.name}) المتبقي: 1`;
                     let color = isDanger ? '#ef4444' : '#d97706';
                     let bg = isDanger ? '#fee2e2' : '#fef3c7';
                     let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
 
-                    notifList.innerHTML += `
+                    companyHTML += `
                         <div class="notif-item ${priorityClass}" onclick="goToContract(${c.id})">
-                            <div class="notif-icon-box" style="background:${bg}; color:${color}">
-                                <i class="fa-solid fa-box-open"></i>
-                            </div>
+                            <div class="notif-icon-box" style="background:${bg}; color:${color}"><i class="fa-solid fa-box-open"></i></div>
                             <div class="notif-content" style="flex:1;">
-                                <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">نواقص:</b> ${msg}</p>
+                                <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:${color};">نواقص المخزن:</b> ${msg}</p>
                             </div>
                             <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                         </div>`;
@@ -2053,36 +2100,32 @@ function updateNotifications() {
             });
         }
 
-        // --- 4. إشعارات الماكينات والمعدات ---
         if(c.assets) {
             c.assets.forEach((a, aIdx) => {
                 if(a.type === 'compressor') {
-                    // أ. الماكينات المعلقة
+                    if (a.isPaused) return;
+
                     if (a.isPlanHold || !a.maintenancePlan || a.maintenancePlan.length === 0) {
-                        count++;
-                        notifList.innerHTML += `
+                        companyCount++;
+                        companyHTML += `
                             <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                <div class="notif-icon-box warning-anim" style="background:#fef3c7; color:#d97706">
-                                    <i class="fa-solid fa-circle-pause"></i>
-                                </div>
+                                <div class="notif-icon-box warning-anim" style="background:#fef3c7; color:#d97706"><i class="fa-solid fa-circle-pause"></i></div>
                                 <div class="notif-content" style="flex:1;">
-                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#d97706; font-size:0.9rem;">${a.name}</b>: ⚠️ معلق (بانتظار تحديد خطة)</p>
+                                    <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#d97706; font-size:0.95rem;">${a.name}</b>: ⚠️ معلق (بانتظار تحديد خطة)</p>
                                 </div>
                                 <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                             </div>`;
                     } 
                     else {
-                        // ب. خطة الصيانة ومواعيد الاستحقاق
                         let base = a.planBaseHours !== undefined ? a.planBaseHours : (a.subType !== 'New' ? a.currentHours : 0);
                         let nextIdx = a.nextMaintenanceIndex || 0;
                         
                         if (nextIdx < a.maintenancePlan.length) {
                             const target = base + 2000;
-                            const remaining = target - a.currentHours;
+                            const remaining = getDynamicRemainingHours(a, target);
                             
-                            if(remaining <= 50) {
-                                count++;
+                            if(remaining <= 100) {
+                                companyCount++;
                                 let isDanger = remaining <= 0;
                                 let maintName = "الصيانة الدورية";
                                 if (target > 0 && target % 24000 === 0) maintName = `صيانة الـ ${target} ساعة (عمرة كاملة)`;
@@ -2093,81 +2136,63 @@ function updateNotifications() {
                                 let bg = isDanger ? '#fee2e2' : '#d1fae5';
                                 let priorityClass = isDanger ? 'priority-high' : 'priority-medium';
 
-                                notifList.innerHTML += `
+                                companyHTML += `
                                     <div class="notif-item ${priorityClass}" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                        <div class="notif-icon-box" style="background:${bg}; color:${color}">
-                                            <i class="fa-solid fa-screwdriver-wrench"></i>
-                                        </div>
+                                        <div class="notif-icon-box" style="background:${bg}; color:${color}"><i class="fa-solid fa-screwdriver-wrench"></i></div>
                                         <div class="notif-content" style="flex:1;">
-                                            <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                            <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ${msg}</p>
+                                            <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.95rem;">${a.name}</b>: ${msg}</p>
                                         </div>
                                         <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                                     </div>`;
                             }
                         } 
-                        // --- التعديل الجديد: إشعار عند انتهاء الخطة بالكامل ---
                         else if (nextIdx >= a.maintenancePlan.length && a.maintenancePlan.length > 0 && !a.isPlanHold) {
-                            count++;
-                            notifList.innerHTML += `
+                            companyCount++;
+                            companyHTML += `
                                 <div class="notif-item priority-high" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                    <div class="notif-icon-box warning-anim" style="background:#fee2e2; color:#ef4444">
-                                        <i class="fa-solid fa-calendar-plus"></i>
-                                    </div>
+                                    <div class="notif-icon-box warning-anim" style="background:#fee2e2; color:#ef4444"><i class="fa-solid fa-calendar-plus"></i></div>
                                     <div class="notif-content" style="flex:1;">
-                                        <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                        <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#ef4444; font-size:0.9rem;">${a.name}</b>: 🚨 الخطة انتهت! يرجى إضافة خطة جديدة أو تعليق الماكينة.</p>
+                                        <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#ef4444; font-size:0.95rem;">${a.name}</b>: 🚨 الخطة انتهت! يرجى إضافة خطة جديدة.</p>
                                     </div>
                                     <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                                 </div>`;
                         }
                     }
 
-                    // ج. إشعار تحديث قراءة العداد (Odometer Update) إذا مر 60 يوم
                     let lastUpdatedDate = a.lastUpdated ? new Date(a.lastUpdated) : (a.startDate ? new Date(a.startDate) : today);
+                    lastUpdatedDate.setHours(0,0,0,0);
                     const daysSinceUpdate = Math.floor((today - lastUpdatedDate) / (1000 * 60 * 60 * 24));
                     
                     if (daysSinceUpdate >= 60) {
-                        count++;
-                        notifList.innerHTML += `
+                        companyCount++;
+                        companyHTML += `
                             <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7">
-                                    <i class="fa-solid fa-gauge-high"></i>
-                                </div>
+                                <div class="notif-icon-box" style="background:#e0f2fe; color:#0284c7"><i class="fa-solid fa-gauge-high"></i></div>
                                 <div class="notif-content" style="flex:1;">
-                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7; font-size:0.9rem;">${a.name}</b>: 📞 تحديث العداد مطلوب (مر ${daysSinceUpdate} يوم)</p>
+                                    <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#0284c7; font-size:0.95rem;">${a.name}</b>: 📞 تحديث العداد مطلوب (مر ${daysSinceUpdate} يوم)</p>
                                 </div>
                                 <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                             </div>`;
                     }
-
                 } 
-                else if (a.type === 'dryer' || a.type === 'vacuum') {
-                    // د. إشعارات المجففات والفاكيوم (الزمنية) - تنبيه بعد 180 يوم (6 شهور) من آخر زيارة
-                    let lastAssetVisitDate = c.startDate ? new Date(c.startDate) : today;
+                else if (a.type === 'vacuum') {
+                    let lastAssetVisitDate = c.startDate ? new Date(c.startDate) : new Date();
                     if (c.history && c.history.length > 0) {
                         const assetHistory = c.history.filter(h => h.assetIndex == aIdx).sort((a,b) => new Date(b.date) - new Date(a.date));
                         if (assetHistory.length > 0) {
                             lastAssetVisitDate = new Date(assetHistory[0].date);
                         }
                     }
+                    lastAssetVisitDate.setHours(0,0,0,0);
                     const daysSinceAssetVisit = Math.floor((today - lastAssetVisitDate) / (1000 * 60 * 60 * 24));
                     
                     if (daysSinceAssetVisit >= 180) {
-                        count++;
-                        let iconClass = a.type === 'dryer' ? 'fa-temperature-arrow-down' : 'fa-fan';
-                        let color = a.type === 'dryer' ? '#ea580c' : '#7c3aed';
-                        let bg = a.type === 'dryer' ? '#ffedd5' : '#f3e8ff';
-
-                        notifList.innerHTML += `
+                        companyCount++;
+                        companyHTML += `
                             <div class="notif-item priority-medium" onclick="goToMachinePlanFromNotif(${c.id}, ${aIdx})">
-                                <div class="notif-icon-box" style="background:${bg}; color:${color}">
-                                    <i class="fa-solid ${iconClass}"></i>
-                                </div>
+                                <div class="notif-icon-box" style="background:#f3e8ff; color:#7c3aed"><i class="fa-solid fa-fan"></i></div>
                                 <div class="notif-content" style="flex:1;">
-                                    <h5 style="margin:0 0 5px 0; font-size:1rem; color:var(--text-main); font-weight:800;">${c.company}</h5>
-                                    <p style="margin:0; font-size:0.85rem; color:var(--text-light); font-weight:600;"><b style="color:${color}; font-size:0.9rem;">${a.name}</b>: ⏳ حان موعد الفحص الدوري (مر ${daysSinceAssetVisit} يوم)</p>
+                                    <p style="margin:0; font-size:0.9rem; color:var(--text-light); font-weight:600;"><b style="color:#7c3aed; font-size:0.95rem;">${a.name}</b>: ⏳ حان موعد الفحص الدوري (مر ${daysSinceAssetVisit} يوم)</p>
                                 </div>
                                 <i class="fa-solid fa-chevron-left" style="color:#cbd5e1; font-size:0.9rem;"></i>
                             </div>`;
@@ -2175,26 +2200,66 @@ function updateNotifications() {
                 }
             });
         }
+
+        // إضافة التنبيهات مجمعة باسم الشركة
+        if (companyCount > 0) {
+            totalCount += companyCount;
+            notifList.innerHTML += `
+                <div class="notif-company-group">
+                    <h4 class="notif-company-title"><i class="fa-solid fa-building"></i> ${c.company}</h4>
+                    <div class="notif-items-container">
+                        ${companyHTML}
+                    </div>
+                </div>
+            `;
+        }
     });
 
-    if (count === 0) { 
-        notifList.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#94a3b8;"><i class="fa-solid fa-circle-check" style="font-size:3rem; margin-bottom:15px; color:#10b981; opacity:0.5;"></i><br><span style="font-weight:bold; font-size:1.1rem;">كل الأمور تمام!</span><br>لا توجد تنبيهات عاجلة حالياً</div>'; 
+    if (totalCount === 0) { 
+        notifList.innerHTML = `
+            <div style="padding:60px 20px; text-align:center; color:#94a3b8;">
+                <i class="fa-solid fa-circle-check" style="font-size:4rem; margin-bottom:20px; color:#10b981; opacity:0.5;"></i><br>
+                <span style="font-weight:bold; font-size:1.3rem;">كل الأمور تمام!</span><br>
+                <p style="margin-top:10px; font-size:1rem;">لا توجد تنبيهات عاجلة في الوقت الحالي.</p>
+            </div>`; 
         badge.style.display = 'none'; 
         bellBtn.classList.remove('bell-active'); 
     } else { 
         badge.style.display = 'flex'; 
-        badge.innerText = count; 
+        badge.innerText = totalCount; 
         bellBtn.classList.add('bell-active'); 
     }
 }
 
-window.toggleNotifications = function() {
-    const dropdown = document.getElementById('notif-dropdown');
-    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+// دالة تأكيد التواصل مع العميل
+window.promptClientContact = function(contractId, event) {
+    if (event) event.stopPropagation(); 
+    const cIdx = contracts.findIndex(c => c.id === contractId);
+    if(cIdx !== -1) {
+        window.showCustomConfirm(
+            "تأكيد المتابعة المستمرة",
+            "هل قمت بالتواصل مع العميل فعلاً للاطمئنان والمتابعة؟",
+            "نعم، تم التواصل",
+            function() {
+                contracts[cIdx].lastContactDate = getLocalDateString();
+                saveData();
+                updateNotifications();
+                showToast("تم تسجيل التواصل وإخفاء الإشعار بنجاح");
+            }
+        );
+    }
+};
+
+window.openNotifModal = function() {
+    document.getElementById('notifModal').style.display = 'flex';
+};
+
+window.closeNotifModal = function() {
+    document.getElementById('notifModal').style.display = 'none';
 };
 
 window.goToContract = function(contractId) {
-    document.getElementById('notif-dropdown').style.display = 'none';
+    closeNotifModal();
     switchTab('contracts');
     
     const c = contracts.find(x => x.id === contractId);
@@ -2206,7 +2271,7 @@ window.goToContract = function(contractId) {
 };
 
 window.goToMachinePlanFromNotif = function(contractId, assetIndex) {
-    document.getElementById('notif-dropdown').style.display = 'none';
+    closeNotifModal();
     openCompanyAssets(contractId);
     setTimeout(() => { openMachineDetails(assetIndex); }, 100);
 };
@@ -2222,7 +2287,7 @@ window.triggerReportRedirect = function(cId, aIdx) {
 };
 
 window.goToMachineReport = function(contractId, assetIndex) {
-    document.getElementById('notif-dropdown').style.display = 'none';
+    closeNotifModal();
     switchTab('reports');
     openCRM(contractId);
     setTimeout(() => {
@@ -2600,7 +2665,6 @@ function renderDetailedTimeline(asset, assetIndex) {
     const container = document.getElementById('machine-plan-timeline');
     container.innerHTML = '';
     
-    // التعديل هنا: إظهار الماكينة المعلقة للمستخدم وإعطائه فرصة للتجديد
     if (!asset.maintenancePlan || asset.maintenancePlan.length === 0 || asset.isPlanHold) {
         container.innerHTML = `
             <div style="text-align:center; padding:30px 20px; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 12px;">
@@ -2611,6 +2675,24 @@ function renderDetailedTimeline(asset, assetIndex) {
                 </button>
             </div>`;
         return;
+    }
+
+    if (asset.isPaused) {
+        container.innerHTML += `
+            <div style="text-align:center; padding:15px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 12px; margin-bottom: 20px; animation: fadeIn 0.4s ease;">
+                <i class="fa-solid fa-pause" style="font-size:2rem; color:#f59e0b; margin-bottom:10px;"></i>
+                <p style="margin-bottom:10px; font-weight:bold; color:#d97706;">الماكينة متوقفة مؤقتاً عن العمل</p>
+                <button class="btn btn-success" onclick="closeMachineDetailsModal(); openResumeMachineModal(${currentAssetContractId}, ${assetIndex})">
+                    <i class="fa-solid fa-play"></i> إعادة تشغيل الماكينة وتحديث البيانات
+                </button>
+            </div>`;
+    } else {
+        container.innerHTML += `
+            <div style="text-align:left; margin-bottom: 15px;">
+                <button class="btn" style="background:#fef3c7; color:#d97706; border:1px solid #fcd34d; font-size:0.85rem;" onclick="pauseMachine(${currentAssetContractId}, ${assetIndex})">
+                    <i class="fa-solid fa-pause"></i> إيقاف مؤقت للماكينة (Hold)
+                </button>
+            </div>`;
     }
 
     const currentHours = asset.currentHours || 0;
@@ -2628,6 +2710,7 @@ function renderDetailedTimeline(asset, assetIndex) {
         let statusIcon = '';
         let dateDisplay = '';
         let actionBtn = '';
+        let countdownBadge = ''; 
 
         if (i < nextIdx) {
             targetHours = completedSteps[i] || "تمت ضمناً";
@@ -2636,7 +2719,8 @@ function renderDetailedTimeline(asset, assetIndex) {
             dateDisplay = 'تم التنفيذ';
         } else {
             targetHours = base + ((i - nextIdx + 1) * 2000);
-            
+            const hoursRemaining = getDynamicRemainingHours(asset, targetHours); 
+
             if (i === nextIdx) {
                 if (currentHours >= targetHours) {
                     statusClass = 'next';
@@ -2656,9 +2740,10 @@ function renderDetailedTimeline(asset, assetIndex) {
                 </button>
             </div>`;
 
-            const hoursRemaining = targetHours - currentHours;
             if (hoursRemaining <= 0) {
                  dateDisplay = '<span style="color:#ef4444; font-weight:bold;">مستحقة / متأخرة</span>';
+            } else if (asset.isPaused) {
+                dateDisplay = '<span style="color:#f59e0b; font-weight:bold;"><i class="fa-solid fa-pause"></i> متوقفة مؤقتاً</span>';
             } else if (dailyHours > 0) {
                 if (asset.subType && asset.subType.includes('Used')) {
                     const targetAddedHours = targetHours - base;
@@ -2677,10 +2762,19 @@ function renderDetailedTimeline(asset, assetIndex) {
             } else {
                 dateDisplay = 'غير محدد';
             }
+
+            // *** إضافة عداد التنازلي التلقائي عندما يتبقى 100 ساعة أو أقل ***
+            if (i === nextIdx && hoursRemaining > 0 && hoursRemaining <= 100) {
+                countdownBadge = `
+                <div style="margin-top: 8px; background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; animation: pulse-danger 2s infinite;">
+                    <i class="fa-solid fa-stopwatch fa-beat-fade"></i> فاضل ${hoursRemaining} ساعة !
+                </div>`;
+            }
         }
 
         const label = getMaintenanceLabel(stepChar);
         const color = getMaintenanceColor(stepChar);
+        
         container.innerHTML += `<div class="tl-item ${statusClass}">
             <div class="tl-dot"></div>
             <div class="tl-content">
@@ -2690,12 +2784,14 @@ function renderDetailedTimeline(asset, assetIndex) {
                     <p style="margin-top:5px; font-size:0.8rem; color:#64748b">${statusIcon}</p>
                     ${actionBtn}
                 </div>
-                <div class="tl-date">${dateDisplay}</div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                    <div class="tl-date">${dateDisplay}</div>
+                    ${countdownBadge}
+                </div>
             </div>
         </div>`;
     });
 
-    // --- التعديل الجديد: عرض زر الإجراء (خطة جديدة/تعليق) عند انتهاء الخطة بالكامل ---
     if (nextIdx >= asset.maintenancePlan.length && asset.maintenancePlan.length > 0 && !asset.isPlanHold) {
         container.innerHTML += `
         <div style="text-align:center; padding:20px; background: #fef2f2; border: 1px dashed #ef4444; border-radius: 12px; margin-top: 20px; animation: fadeInUp 0.5s ease forwards;">
@@ -2709,7 +2805,77 @@ function renderDetailedTimeline(asset, assetIndex) {
     }
 }
 
-// دالة عرض Modal إتمام الصيانة
+// =========================================================
+// --- MACHINE PAUSE & RESUME LOGIC (إيقاف وتشغيل الماكينة) ---
+// =========================================================
+
+window.pauseMachine = function(cId, aIdx) {
+    if(confirm("هل أنت متأكد من إيقاف الماكينة مؤقتاً؟\nسيتم إيقاف حساب التواريخ المستقبلية للصيانة حتى تقوم بإعادة تشغيلها وإدخال البيانات الجديدة.")) {
+        const cIdx = contracts.findIndex(c => c.id === cId);
+        if (cIdx !== -1) {
+            contracts[cIdx].assets[aIdx].isPaused = true;
+            saveData();
+            renderAll();
+            openMachineDetails(aIdx);
+            showToast("تم إيقاف الماكينة مؤقتاً", "success");
+        }
+    }
+};
+
+window.openResumeMachineModal = function(cId, aIdx) {
+    document.getElementById('resumeContractId').value = cId;
+    document.getElementById('resumeAssetIndex').value = aIdx;
+    
+    const asset = contracts.find(c => c.id === cId).assets[aIdx];
+    
+    document.getElementById('resumeCurrentHours').value = asset.currentHours || 0;
+    document.getElementById('resumeDailyHours').value = asset.dailyHours || 0;
+    document.getElementById('resumeDaysOff').value = asset.daysOff || 0;
+    document.getElementById('resumeDate').value = getLocalDateString();
+    
+    document.getElementById('resumeMachineModal').style.display = 'flex';
+};
+
+window.closeResumeMachineModal = function() {
+    document.getElementById('resumeMachineModal').style.display = 'none';
+};
+
+// --- الدالة المحدثة لمنع الريفريش ---
+window.submitResumeMachine = function(e) {
+    e.preventDefault(); 
+    
+    const cId = parseInt(document.getElementById('resumeContractId').value);
+    const aIdx = parseInt(document.getElementById('resumeAssetIndex').value);
+    
+    const currentHours = parseInt(document.getElementById('resumeCurrentHours').value);
+    const dailyHours = parseFloat(document.getElementById('resumeDailyHours').value);
+    const daysOff = parseFloat(document.getElementById('resumeDaysOff').value);
+    const resumeDate = document.getElementById('resumeDate').value;
+    
+    const cIdx = contracts.findIndex(c => c.id === cId);
+    if (cIdx === -1) return;
+    const asset = contracts[cIdx].assets[aIdx];
+    
+    asset.currentHours = Math.max(asset.currentHours || 0, currentHours); 
+    asset.dailyHours = dailyHours;
+    asset.daysOff = daysOff;
+    
+    asset.lastUpdated = resumeDate; 
+    
+    if (asset.subType && asset.subType.includes('Used')) {
+        asset.startDate = resumeDate;
+        asset.planBaseHours = asset.planBaseHours !== undefined ? asset.planBaseHours : 0; 
+    }
+    
+    asset.isPaused = false;
+    
+    saveData();
+    renderAll();
+    closeResumeMachineModal();
+    openMachineDetails(aIdx); 
+    showToast("تم إعادة التشغيل وتحديث المواعيد بنجاح!", "success");
+};
+
 window.markMaintenanceDone = function(cId, aIdx, stepIdx) {
     const cIdx_local = contracts.findIndex(c => c.id === cId);
     if(cIdx_local === -1) return;
@@ -2732,7 +2898,6 @@ window.closeMaintenanceConfirmModal = function() {
     pendingMaintConfirm = null;
 };
 
-// الدالة اللي بتنفذ الإتمام بعد الضغط على تأكيد في الـ Modal
 window.executeMaintenanceDone = function() {
     if (!pendingMaintConfirm) return;
     
@@ -2760,7 +2925,7 @@ window.executeMaintenanceDone = function() {
     let currentNextIdx = asset.nextMaintenanceIndex || 0;
 
     if (!asset.completedStepsHours) asset.completedStepsHours = [];
-    if (!asset.completedStepsDates) asset.completedStepsDates = []; // NEW ARRAY
+    if (!asset.completedStepsDates) asset.completedStepsDates = [];
 
     if (stepIdx > currentNextIdx) {
         const completedStepChar = asset.maintenancePlan.splice(stepIdx, 1)[0];
@@ -2768,7 +2933,7 @@ window.executeMaintenanceDone = function() {
     }
     
     asset.completedStepsHours[currentNextIdx] = hours;
-    asset.completedStepsDates[currentNextIdx] = exactDateStr; // SAVE EXACT DATE
+    asset.completedStepsDates[currentNextIdx] = exactDateStr; 
     
     asset.planBaseHours = hours; 
     asset.currentHours = Math.max(asset.currentHours, hours); 
@@ -2817,7 +2982,6 @@ document.querySelectorAll('.sidebar li').forEach(li => {
     });
 });
 
-// --- RENEW MAINTENANCE PLAN LOGIC ---
 let renewPlanArray = [];
 let renewContractId = null;
 let renewAssetIndex = null;
@@ -2872,7 +3036,6 @@ window.updateRenewPlanPreview = function() {
     });
 };
 
-// --- دالة تعليق الماكينة (Hold) ---
 window.holdMachinePlan = function() {
     if(!confirm('هل أنت متأكد من تعليق خطة الماكينة؟ (يمكنك إضافة خطة لاحقاً)')) return;
     
@@ -2880,7 +3043,6 @@ window.holdMachinePlan = function() {
     if(cIdx === -1) return;
     const asset = contracts[cIdx].assets[renewAssetIndex];
     
-    // تفريغ الخطة وتفعيل وضع التعليق
     asset.maintenancePlan = [];
     asset.nextMaintenanceIndex = 0;
     asset.completedStepsHours = [];
@@ -2890,7 +3052,6 @@ window.holdMachinePlan = function() {
     saveData();
     renderAll();
 
-    // حفظ قيم العقد والماكينة قبل إغلاق النافذة وتصفير المتغيرات العامة
     const currentContractId = renewContractId;
     const currentAssetIndex = renewAssetIndex;
 
@@ -2898,12 +3059,10 @@ window.holdMachinePlan = function() {
     showToast("تم تعليق الماكينة (بانتظار العميل)", "success");
     
     setTimeout(() => {
-        // استخدام المتغيرات المحفوظة بدلاً من المتغيرات العامة التي أصبحت null
         triggerReportRedirect(currentContractId, currentAssetIndex);
     }, 500);
 };
 
-// --- دالة حفظ الخطة الجديدة ---
 window.saveRenewedPlan = function() {
     if(renewPlanArray.length === 0) {
         alert('من فضلك قم بإضافة خطوة واحدة على الأقل للخطة.');
@@ -2917,7 +3076,7 @@ window.saveRenewedPlan = function() {
     asset.nextMaintenanceIndex = 0;
     asset.completedStepsHours = [];
     asset.completedStepsDates = [];
-    asset.isPlanHold = false; // فك التعليق لو كانت معلقة
+    asset.isPlanHold = false; 
     
     if (asset.subType && asset.subType.includes('Used')) {
         asset.startDate = getLocalDateString(); 
@@ -2926,7 +3085,6 @@ window.saveRenewedPlan = function() {
     saveData();
     renderAll();
 
-    // حفظ قيم العقد والماكينة قبل إغلاق النافذة وتصفير المتغيرات العامة
     const currentContractId = renewContractId;
     const currentAssetIndex = renewAssetIndex;
 
@@ -2934,7 +3092,6 @@ window.saveRenewedPlan = function() {
     showToast("تم تجديد خطة الصيانة بنجاح!");
     
     setTimeout(() => {
-        // استخدام المتغيرات المحفوظة بدلاً من المتغيرات العامة التي أصبحت null
         triggerReportRedirect(currentContractId, currentAssetIndex);
     }, 500);
 }
@@ -2974,18 +3131,15 @@ window.autoFillMaintenance = function(stepChar) {
 
 let modalCloseCallback = null;
 
-// دالة جديدة ديناميكية للـ Pop-up تقبل أي عنوان ونص
 window.showCustomConfirm = function(title, message, btnText, callback) {
     modalCloseCallback = callback;
     const modal = document.getElementById('customConfirmModal');
-    // تغيير النصوص داخل الـ Modal بناءً على المدخلات
     modal.querySelector('h3').innerText = title;
     modal.querySelector('p').innerText = message;
     modal.querySelector('#confirmYesBtn').innerHTML = `<i class="fa-solid fa-check"></i> ${btnText}`;
     modal.style.display = 'flex';
 };
 
-// الدالة القديمة الخاصة بقفل النوافذ (تم ربطها بالدالة الديناميكية عشان متأثرش على شغلك القديم)
 window.showCloseConfirm = function(callback) {
     window.showCustomConfirm(
         "هل أنت متأكد من الإغلاق؟",
@@ -2999,6 +3153,7 @@ window.closeConfirmModal = function() {
     document.getElementById('customConfirmModal').style.display = 'none';
     modalCloseCallback = null;
 };
+
 const originalOnClick = window.onclick;
 window.onclick = function(e) { 
     if (typeof originalOnClick === 'function') originalOnClick(e);
@@ -3017,11 +3172,9 @@ window.onclick = function(e) {
     else if (e.target == document.getElementById('renewPlanModal')) closeRenewPlanModal();
     else if (e.target == document.getElementById('maintenanceConfirmModal')) closeMaintenanceConfirmModal();
     else if (e.target == document.getElementById('customConfirmModal')) closeConfirmModal();
+    else if (e.target == document.getElementById('resumeMachineModal')) closeResumeMachineModal(); 
+    else if (e.target == document.getElementById('notifModal')) closeNotifModal();
 }
-
-// =========================================================
-// --- BACKUP & RESTORE LOGIC (إدارة النسخ الاحتياطية) ---
-// =========================================================
 
 window.exportBackup = function() {
     if (contracts.length === 0) {
@@ -3059,7 +3212,6 @@ window.importBackup = function(event) {
             const importedData = JSON.parse(e.target.result);
             
             if (Array.isArray(importedData)) {
-                // استخدام الـ Pop-up الاحترافي الخاص بالنظام
                 window.showCustomConfirm(
                     "تحذير هام جداً", 
                     "استرجاع البيانات سيقوم بمسح كافة البيانات الحالية واستبدالها بالنسخة الاحتياطية. هل أنت متأكد من الاستمرار؟", 
@@ -3079,13 +3231,12 @@ window.importBackup = function(event) {
             showToast("حدث خطأ أثناء قراءة الملف، تأكد من أنه ملف JSON صحيح", "error");
         }
         
-        // تصفير الـ input عشان لو حبيت ترفع نفس الملف تاني
         event.target.value = '';
     };
     
     reader.readAsText(file);
 };
-// --- PRINT PDF REPORT FUNCTION ---
+
 window.printAssetReport = function() {
     const cIdStr = document.getElementById('reportContractId').value;
     const aIdxStr = document.getElementById('reportAssetIndex').value;
@@ -3102,11 +3253,9 @@ window.printAssetReport = function() {
     
     const asset = contract.assets[aIdx];
     
-    // إخفاء ال template أثناء ملء البيانات لمنع الوميض
     const printTemplate = document.getElementById('pdf-print-template');
     printTemplate.style.display = 'block';
     
-    // Fill Data
     document.getElementById('print-comp-name').innerText = contract.company;
     document.getElementById('print-asset-model').innerText = asset.name || 'غير محدد';
     document.getElementById('print-asset-serial').innerText = asset.serial || 'غير محدد';
@@ -3114,7 +3263,6 @@ window.printAssetReport = function() {
     document.getElementById('print-asset-hours').innerText = (asset.currentHours || 0) + ' ساعة';
     document.getElementById('print-asset-rate').innerText = (asset.dailyHours || contract.dailyHours || 0) + ' ساعة/يوم';
     
-    // Maintenance Logic
     let nextIdx = asset.nextMaintenanceIndex || 0;
     let lastCompletedStr = '<div style="color:var(--text-light); font-size:0.95rem;">لا يوجد صيانة سابقة مسجلة</div>';
     let lastCompletedStatus = '';
@@ -3122,7 +3270,6 @@ window.printAssetReport = function() {
     let nextScheduledStatus = '';
     
     if (asset.maintenancePlan && asset.maintenancePlan.length > 0) {
-        // Last Completed
         if (nextIdx > 0) {
             let lastChar = asset.maintenancePlan[nextIdx - 1];
             let lastHours = asset.completedStepsHours ? asset.completedStepsHours[nextIdx - 1] : (asset.planBaseHours || 0);
@@ -3134,7 +3281,6 @@ window.printAssetReport = function() {
             lastCompletedStr = '<div style="color:var(--text-light); font-size:0.95rem;">لم يتم إتمام أي صيانة بعد</div>';
         }
         
-        // Next Scheduled
         if (nextIdx < asset.maintenancePlan.length) {
             let nextChar = asset.maintenancePlan[nextIdx];
             let base = asset.planBaseHours !== undefined ? asset.planBaseHours : (asset.subType !== 'New' ? asset.currentHours : 0);
@@ -3146,10 +3292,12 @@ window.printAssetReport = function() {
             let daysOff = asset.daysOff || contract.daysOff || 0;
             
             let dateDisplay = 'غير محدد';
-            let hoursRemaining = targetHours - currentHours;
+            let hoursRemaining = getDynamicRemainingHours(asset, targetHours);
             
             if (hoursRemaining <= 0) {
                  dateDisplay = 'مستحقة فوراً';
+            } else if (asset.isPaused) {
+                dateDisplay = 'متوقفة مؤقتاً';
             } else if (dailyHours > 0) {
                 if (asset.subType && asset.subType.includes('Used')) {
                     const targetAddedHours = targetHours - base;
@@ -3176,7 +3324,6 @@ window.printAssetReport = function() {
     document.getElementById('print-next-maint').innerHTML = nextScheduledStr;
     document.getElementById('print-next-status').innerHTML = nextScheduledStatus;
     
-    // --- سحب المهام وقطع الغيار الحالية للطباعة ---
     let currentNotes = document.getElementById('visitNotes').value;
     if (!currentNotes || currentNotes.trim() === '') {
         currentNotes = "تم إجراء الفحص ولم يتم تسجيل تفاصيل إضافية.";
@@ -3233,7 +3380,6 @@ window.printAssetReport = function() {
     }, 100);
 };
 
-// --- PRINT FULL COMPREHENSIVE PDF REPORT FUNCTION ---
 window.printFullContractPDF = function() {
     if(!currentAssetContractId) {
         showToast('برجاء الدخول على شركة أولاً', 'error');
@@ -3250,14 +3396,12 @@ window.printFullContractPDF = function() {
     const printTemplate = document.getElementById('pdf-comp-report-template');
     printTemplate.style.display = 'block';
 
-    // تعبئة البيانات الأساسية (اسم الشركة والتاريخ)
     document.getElementById('print-comp-full-name').innerText = c.company;
     const today = new Date();
     document.getElementById('print-comp-date').innerText = `تاريخ استخراج التقرير: ${today.toLocaleDateString('ar-EG')}`;
 
     let reportHtml = '';
 
-    // إحصائية سريعة لعدد الماكينات
     const compCount = c.assets.filter(a => a.type === 'compressor').length;
     const dryerCount = c.assets.filter(a => a.type === 'dryer').length;
     const vacCount = c.assets.filter(a => a.type === 'vacuum').length;
@@ -3268,7 +3412,6 @@ window.printFullContractPDF = function() {
         <span><i class="fa-solid fa-fan" style="color:#8b5cf6;"></i> طلمبة تفريغ: ${vacCount}</span>
     </div>`;
 
-    // المرور على كل ماكينة وسحب بياناتها
     c.assets.forEach((a, index) => {
         let icon, typeName, titleBg, bodyBg;
         
@@ -3299,7 +3442,6 @@ window.printFullContractPDF = function() {
                 <td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>ساعات التشغيل المسجلة:</strong> <span style="color:#ef4444; font-weight:bold;">${a.currentHours || 0} ساعة</span></td>
             </tr></table>`;
             
-            // جدول الصيانة الخاص بالكمبريسور
             reportHtml += `<h4 style="margin: 0 0 10px 0; color: ${titleBg};"><i class="fa-solid fa-list-check"></i> جدول خطة الصيانة (Maintenance Plan):</h4>`;
             
             if (a.maintenancePlan && a.maintenancePlan.length > 0) {
@@ -3326,7 +3468,6 @@ window.printFullContractPDF = function() {
                     let label = getMaintenanceLabel(stepChar);
 
                     if (i < nextIdx) {
-                        // الصيانة المنفذة
                         let actualHours = a.completedStepsHours ? a.completedStepsHours[i] : "تمت ضمناً";
                         let actualDate = (a.completedStepsDates && a.completedStepsDates[i]) ? a.completedStepsDates[i] : "منفذة مسبقاً";
                         reportHtml += `<tr>
@@ -3336,8 +3477,7 @@ window.printFullContractPDF = function() {
                             <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">${actualDate}</td>
                         </tr>`;
                     } else {
-                        // الصيانة القادمة
-                        let hoursRemaining = target - currentHours;
+                        let hoursRemaining = getDynamicRemainingHours(a, target);
                         let dateStr = 'غير محدد';
                         let statusColor = '#d97706';
                         let statusText = '🕒 مجدولة';
@@ -3346,6 +3486,10 @@ window.printFullContractPDF = function() {
                             statusColor = '#ef4444';
                             statusText = '🔴 مستحقة فوراً';
                             dateStr = 'مطلوبة الآن';
+                        } else if (a.isPaused) {
+                            statusColor = '#f59e0b';
+                            statusText = '⏸️ متوقفة مؤقتاً';
+                            dateStr = 'متوقفة';
                         } else if (dailyHours > 0) {
                             if (a.subType && a.subType.includes('Used')) {
                                 const targetAddedHours = target - base;
@@ -3390,17 +3534,14 @@ window.printFullContractPDF = function() {
 
     document.getElementById('comp-report-body').innerHTML = reportHtml;
 
-    // استدعاء نافذة الطباعة بعد تحضير الـ HTML
     setTimeout(() => {
         window.print();
-        // إخفاء القالب بعد الطباعة لمنع ظهوره في واجهة المستخدم
         setTimeout(() => {
             printTemplate.style.display = 'none';
         }, 500);
     }, 100);
 };
 
-// --- PRINT SINGLE ASSET PDF REPORT (HISTORY & PLAN) ---
 window.printSingleAssetPDF = function(assetIndex) {
     if(!currentAssetContractId) return;
     const c = contracts.find(x => x.id === currentAssetContractId);
@@ -3410,7 +3551,6 @@ window.printSingleAssetPDF = function(assetIndex) {
     const printTemplate = document.getElementById('pdf-comp-report-template');
     printTemplate.style.display = 'block';
 
-    // تعبئة البيانات الأساسية (اسم الشركة والتاريخ)
     document.getElementById('print-comp-full-name').innerText = c.company;
     const today = new Date();
     document.getElementById('print-comp-date').innerText = `تاريخ استخراج التقرير: ${today.toLocaleDateString('ar-EG')}`;
@@ -3426,7 +3566,6 @@ window.printSingleAssetPDF = function(assetIndex) {
         <span dir="ltr" style="color: #64748b; font-size: 1.1rem; font-weight: bold;">(${typeName})</span>
     </div>`;
 
-    // 1. بيانات الماكينة الأساسية
     reportHtml += `<div class="print-box" style="margin-bottom: 25px; border-color: ${titleBg}; page-break-inside: avoid;">
         <div class="print-box-title" style="background: ${titleBg} !important; color: white !important; font-size: 1.15rem;">
             <i class="fa-solid fa-microchip"></i> بيانات الماكينة الأساسية
@@ -3441,7 +3580,6 @@ window.printSingleAssetPDF = function(assetIndex) {
         reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>معدل التشغيل:</strong> ${a.dailyHours || c.dailyHours || 0} ساعة/يوم</td></tr>
         <tr><td style="padding: 8px; border: 1px solid #cbd5e1; background: white;" colspan="3"><strong>ساعات التشغيل المسجلة (حتى تاريخه):</strong> <span style="color:#ef4444; font-weight:bold;">${a.currentHours || 0} ساعة</span></td></tr></table></div></div>`;
 
-        // 2. خطة الصيانة للكمبريسور
         reportHtml += `<div class="print-box" style="margin-bottom: 25px; border-color: #059669; page-break-inside: avoid;">
             <div class="print-box-title" style="background: #059669 !important; color: white !important; font-size: 1.15rem;">
                 <i class="fa-solid fa-list-check"></i> الموقف الحالي لخطة الصيانة (Maintenance Plan)
@@ -3480,13 +3618,15 @@ window.printSingleAssetPDF = function(assetIndex) {
                         <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #16a34a; font-weight: bold;">${actualDate}</td>
                     </tr>`;
                 } else {
-                    let hoursRemaining = target - currentHours;
+                    let hoursRemaining = getDynamicRemainingHours(a, target);
                     let dateStr = 'غير محدد';
                     let statusColor = '#d97706';
                     let statusText = '🕒 مجدولة';
 
                     if (hoursRemaining <= 0) {
                         statusColor = '#ef4444'; statusText = '🔴 مستحقة فوراً'; dateStr = 'مطلوبة الآن';
+                    } else if (a.isPaused) {
+                        statusColor = '#f59e0b'; statusText = '⏸️ متوقفة مؤقتاً'; dateStr = 'متوقفة';
                     } else if (dailyHours > 0) {
                         if (a.subType && a.subType.includes('Used')) {
                             const targetAddedHours = target - base;
@@ -3519,8 +3659,6 @@ window.printSingleAssetPDF = function(assetIndex) {
         reportHtml += `<td style="padding: 8px; border: 1px solid #cbd5e1; background: white; width: 34%;"><strong>الضغط:</strong> ${a.bar || '-'} Bar</td></tr></table></div></div>`;
     }
 
-    // 3. سجل الزيارات السابق (History Log)
-    // سحب الفلترة بناءً على الـ assetIndex الخاص بالماكينة وترتيبهم من الأحدث للأقدم
     const assetHistory = (c.history || []).filter(h => h.assetIndex == assetIndex).sort((a,b) => new Date(b.date) - new Date(a.date));
 
     reportHtml += `<div class="print-box" style="border-color: #475569;">
@@ -3546,17 +3684,14 @@ window.printSingleAssetPDF = function(assetIndex) {
     }
     reportHtml += `</div></div>`;
 
-    // تعبئة البيانات في قالب الطباعة
     document.getElementById('comp-report-body').innerHTML = reportHtml;
 
-    // استدعاء نافذة الطباعة
     setTimeout(() => {
         window.print();
         setTimeout(() => { printTemplate.style.display = 'none'; }, 500);
     }, 100);
 };
 
-// --- دالة فتح واتساب الشركة بدون رسائل مسبقة ---
 window.sendCompanyGreetingWA = function() {
     if(!currentAssetContractId) return;
     const c = contracts.find(x => x.id === currentAssetContractId);
@@ -3564,6 +3699,5 @@ window.sendCompanyGreetingWA = function() {
 
     const phone = formatPhone(c.phone);
     
-    // فتح الواتساب باستخدام الرقم فقط بدون أي نص
     window.open(`https://wa.me/${phone}`, '_blank');
 };

@@ -94,6 +94,42 @@ header { background: var(--bg-card); padding: 15px 30px; display: flex; justify-
 .notif-list::-webkit-scrollbar { width: 6px; }
 .notif-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
+/* --- New Notifications Modal Styling --- */
+.notif-company-group {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 25px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    animation: fadeInUp 0.4s ease-out forwards;
+}
+.notif-company-title {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    margin: 0;
+    padding: 15px;
+    text-align: center;
+    color: var(--primary);
+    font-size: 1.25rem;
+    font-weight: 800;
+    border-bottom: 2px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+.notif-items-container {
+    padding: 10px;
+}
+.notif-items-container .notif-item {
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid transparent;
+}
+.notif-items-container .notif-item:last-child {
+    margin-bottom: 0;
+}
+
 /* Dashboard & Common */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
 .stat-card { background: var(--bg-card); padding: 25px; border-radius: var(--radius); box-shadow: var(--shadow); position: relative; overflow: hidden; border-bottom: 4px solid transparent; transition: transform 0.3s; }
